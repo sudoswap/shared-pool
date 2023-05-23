@@ -10,3 +10,6 @@
 [submodule "lib/clones-with-immutable-args"]
 	path = lib/clones-with-immutable-args
 	url = https://github.com/wighawag/clones-with-immutable-args
+[submodule "lib/lssvm2"]
+	path = lib/lssvm2
+	url = https://github.com/sudoswap/lssvm2
