@@ -4,12 +4,10 @@ pragma solidity ^0.8.4;
 import {Clone} from "@clones/Clone.sol";
 
 import {LSSVMPair} from "lssvm2/LSSVMPair.sol";
-import {LSSVMPairETH} from "lssvm2/LSSVMPairETH.sol";
 import {LSSVMPairFactory} from "lssvm2/LSSVMPairFactory.sol";
 
 import {ERC20} from "solmate/tokens/ERC20.sol";
 import {SafeCastLib} from "solmate/utils/SafeCastLib.sol";
-import {SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
 
 import "./lib/Math.sol";
@@ -42,8 +40,8 @@ abstract contract SharedPool is Clone, ERC20("Sudoswap Shared Pool", "SUDO-POOL"
     /// -----------------------------------------------------------------------
 
     /// @notice The Sudo XYK curve pool used to provide liquidity
-    function pair() public pure returns (LSSVMPairETH pair_) {
-        return LSSVMPairETH(payable(_getArgAddress(0x00)));
+    function pair() public pure returns (LSSVMPair pair_) {
+        return LSSVMPair(payable(_getArgAddress(0x00)));
     }
 
     /// @notice The initial delta value of the Sudo XYK curve pool. Used for computing NFT balance
@@ -66,6 +64,8 @@ abstract contract SharedPool is Clone, ERC20("Sudoswap Shared Pool", "SUDO-POOL"
         return LSSVMPairFactory(payable(_getArgAddress(0x48)));
     }
 
+    function token() public pure virtual returns (ERC20);
+
     /// -----------------------------------------------------------------------
     /// External functions
     /// -----------------------------------------------------------------------
@@ -86,7 +86,7 @@ abstract contract SharedPool is Clone, ERC20("Sudoswap Shared Pool", "SUDO-POOL"
     /// Internal functions
     /// -----------------------------------------------------------------------
 
-    function _deposit(LSSVMPair _pair, uint256 numNfts, uint256 minLiquidity, address recipient)
+    function _deposit(LSSVMPair _pair, uint256 numNfts, uint256 minLiquidity, uint256 tokenInput, address recipient)
         internal
         returns (uint256 liquidity)
     {
@@ -108,11 +108,11 @@ abstract contract SharedPool is Clone, ERC20("Sudoswap Shared Pool", "SUDO-POOL"
 
             // mint liquidity tokens
             if (_totalSupply == 0) {
-                liquidity = (numNfts * BASE * msg.value).sqrt() - MINIMUM_LIQUIDITY;
+                liquidity = (numNfts * BASE * tokenInput).sqrt() - MINIMUM_LIQUIDITY;
                 _mint(address(0), MINIMUM_LIQUIDITY); // permanently lock the first MINIMUM_LIQUIDITY tokens
             } else {
                 liquidity =
-                    min(numNfts.mulDivDown(_totalSupply, nftReserve), msg.value.mulDivDown(_totalSupply, tokenReserve));
+                    min(numNfts.mulDivDown(_totalSupply, nftReserve), tokenInput.mulDivDown(_totalSupply, tokenReserve));
             }
             if (liquidity < minLiquidity) revert SharedPool__InsufficientLiquidityMinted();
             _mint(recipient, liquidity);
@@ -124,7 +124,7 @@ abstract contract SharedPool is Clone, ERC20("Sudoswap Shared Pool", "SUDO-POOL"
 
         // update pair params
         _pair.changeDelta((virtualNftReserve + numNfts).safeCastTo128());
-        _pair.changeSpotPrice((virtualTokenReserve + msg.value).safeCastTo128());
+        _pair.changeSpotPrice((virtualTokenReserve + tokenInput).safeCastTo128());
     }
 
     function _redeem(
@@ -212,4 +212,12 @@ abstract contract SharedPool is Clone, ERC20("Sudoswap Shared Pool", "SUDO-POOL"
         // TODO: handle negative edge case
         return spotPrice - initialSpotPrice();
     }
+
+    function _getTokenInput(bytes calldata extraData) internal view virtual returns (uint256 tokenInput);
+
+    function _pullTokensFromSender(ERC20 _token, address to, uint256 amount) internal virtual;
+
+    function _pushTokens(ERC20 _token, address to, uint256 amount) internal virtual;
+
+    function _withdrawTokensFromPair(ERC20 _token, LSSVMPair _pair, uint256 amount) internal virtual;
 }

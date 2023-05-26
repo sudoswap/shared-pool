@@ -7,7 +7,7 @@ import {IERC1155} from "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 
 import "./SharedPool.sol";
 
-contract SharedPoolERC1155 is SharedPool, ERC1155TokenReceiver {
+abstract contract SharedPoolERC1155 is SharedPool, ERC1155TokenReceiver {
     /// -----------------------------------------------------------------------
     /// Immutable args
     /// -----------------------------------------------------------------------
@@ -20,13 +20,14 @@ contract SharedPoolERC1155 is SharedPool, ERC1155TokenReceiver {
     /// External functions
     /// -----------------------------------------------------------------------
 
-    function deposit(uint256 numNfts, uint256 minLiquidity, address recipient)
+    function deposit(uint256 numNfts, uint256 minLiquidity, address recipient, bytes calldata extraData)
         external
         payable
         returns (uint256 liquidity)
     {
-        LSSVMPairETH _pair = pair();
-        liquidity = _deposit(_pair, numNfts, minLiquidity, recipient);
+        LSSVMPair _pair = pair();
+        uint256 tokenInput = _getTokenInput(extraData);
+        liquidity = _deposit(_pair, numNfts, minLiquidity, tokenInput, recipient);
 
         /// -----------------------------------------------------------------------
         /// Effects
@@ -34,13 +35,16 @@ contract SharedPoolERC1155 is SharedPool, ERC1155TokenReceiver {
 
         // transfer NFTs from msg.sender to pair
         ERC1155(nft()).safeTransferFrom(msg.sender, address(_pair), nftId(), numNfts, "");
+
+        // transfer tokens to pair
+        _pullTokensFromSender(token(), address(_pair), tokenInput);
     }
 
     function redeem(uint256 liquidity, uint256 minNumNftOutput, uint256 minTokenOutput, address recipient)
         external
         returns (uint256 numNftOutput, uint256 tokenOutput)
     {
-        LSSVMPairETH _pair = pair();
+        LSSVMPair _pair = pair();
         uint256 _nftId = nftId();
         (numNftOutput, tokenOutput) = _redeem(_pair, liquidity, minNumNftOutput, minTokenOutput, _nftId);
 
@@ -59,12 +63,13 @@ contract SharedPoolERC1155 is SharedPool, ERC1155TokenReceiver {
         }
 
         // withdraw tokens from pair
-        _pair.withdrawETH(tokenOutput);
+        ERC20 _token = token();
+        _withdrawTokensFromPair(_token, _pair, tokenOutput);
 
         // transfer NFTs to recipient
         ERC1155(nft()).safeTransferFrom(address(this), recipient, _nftId, numNftOutput, "");
 
         // transfer tokens to recipient
-        SafeTransferLib.safeTransferETH(recipient, tokenOutput);
+        _pushTokens(_token, recipient, tokenOutput);
     }
 }

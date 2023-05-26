@@ -11,8 +11,10 @@ import {ERC20} from "solmate/tokens/ERC20.sol";
 import {ERC721} from "solmate/tokens/ERC721.sol";
 import {ERC1155} from "solmate/tokens/ERC1155.sol";
 
-import {SharedPoolERC721} from "./SharedPoolERC721.sol";
-import {SharedPoolERC1155} from "./SharedPoolERC1155.sol";
+import {SharedPoolERC721ETH} from "./SharedPoolERC721ETH.sol";
+import {SharedPoolERC721ERC20} from "./SharedPoolERC721ERC20.sol";
+import {SharedPoolERC1155ETH} from "./SharedPoolERC1155ETH.sol";
+import {SharedPoolERC1155ERC20} from "./SharedPoolERC1155ERC20.sol";
 
 /// @title SharedPoolFactory
 /// @author zefram.eth
@@ -28,18 +30,26 @@ contract SharedPoolFactory {
     /// Events
     /// -----------------------------------------------------------------------
 
-    event CreateSharedPoolERC721(SharedPoolERC721 sharedPool);
-    event CreateSharedPoolERC1155(SharedPoolERC1155 sharedPool);
+    event CreateSharedPoolERC721ETH(SharedPoolERC721ETH sharedPool);
+    event CreateSharedPoolERC721ERC20(SharedPoolERC721ERC20 sharedPool);
+    event CreateSharedPoolERC1155ETH(SharedPoolERC1155ETH sharedPool);
+    event CreateSharedPoolERC1155ERC20(SharedPoolERC1155ERC20 sharedPool);
 
     /// -----------------------------------------------------------------------
     /// Immutable parameters
     /// -----------------------------------------------------------------------
 
-    /// @notice The contract used as the template for all SharedPoolERC721 contracts created
-    SharedPoolERC721 internal immutable implementation;
+    /// @notice The contract used as the template for all SharedPoolERC721ETH contracts created
+    SharedPoolERC721ETH internal immutable implementationERC721ETH;
 
-    /// @notice The contract used as the template for all SharedPoolERC1155 contracts created
-    SharedPoolERC1155 internal immutable implementationERC1155;
+    /// @notice The contract used as the template for all SharedPoolERC721ERC20 contracts created
+    SharedPoolERC721ERC20 internal immutable implementationERC721ERC20;
+
+    /// @notice The contract used as the template for all SharedPoolERC1155ETH contracts created
+    SharedPoolERC1155ETH internal immutable implementationERC1155ETH;
+
+    /// @notice The contract used as the template for all SharedPoolERC1155ERC20 contracts created
+    SharedPoolERC1155ERC20 internal immutable implementationERC1155ERC20;
 
     /// @notice The LSSVMPairFactory contract used for deploying pairs
     LSSVMPairFactory internal immutable pairFactory;
@@ -48,18 +58,22 @@ contract SharedPoolFactory {
     ICurve internal immutable xykCurve;
 
     constructor(
-        SharedPoolERC721 implementation_,
-        SharedPoolERC1155 implementationERC1155_,
+        SharedPoolERC721ETH implementationERC721ETH_,
+        SharedPoolERC721ERC20 implementationERC721ERC20_,
+        SharedPoolERC1155ETH implementationERC1155ETH_,
+        SharedPoolERC1155ERC20 implementationERC1155ERC20_,
         LSSVMPairFactory pairFactory_,
         ICurve xykCurve_
     ) {
-        implementation = implementation_;
-        implementationERC1155 = implementationERC1155_;
+        implementationERC721ETH = implementationERC721ETH_;
+        implementationERC721ERC20 = implementationERC721ERC20_;
+        implementationERC1155ETH = implementationERC1155ETH_;
+        implementationERC1155ERC20 = implementationERC1155ERC20_;
         pairFactory = pairFactory_;
         xykCurve = xykCurve_;
     }
 
-    /// @notice Creates a SharedPoolERC721 contract
+    /// @notice Creates a SharedPoolERC721ETH contract
     /// @dev Uses a modified minimal proxy contract that stores immutable parameters in code and
     /// passes them in through calldata. See ClonesWithImmutableArgs.
     /// @param nft The NFT used by the LSSVMPair
@@ -68,10 +82,13 @@ contract SharedPoolFactory {
     /// @param fee The trade fee value of the pair
     /// @param propertyChecker The property checker used by the pair
     /// @return sharedPool The created SharedPool contract
-    function createSharedPoolERC721(ERC721 nft, uint128 delta, uint128 spotPrice, uint96 fee, address propertyChecker)
-        external
-        returns (SharedPoolERC721 sharedPool)
-    {
+    function createSharedPoolERC721ETH(
+        ERC721 nft,
+        uint128 delta,
+        uint128 spotPrice,
+        uint96 fee,
+        address propertyChecker
+    ) external returns (SharedPoolERC721ETH sharedPool) {
         // deploy trade pair with XYK curve
         uint256[] memory empty;
         LSSVMPair pair = pairFactory.createPairERC721ETH(
@@ -86,17 +103,63 @@ contract SharedPoolFactory {
             empty
         );
 
-        // deploy SharedPoolERC721
+        // deploy shared pool
         bytes memory data = abi.encodePacked(pair, delta, spotPrice, nft, pairFactory);
-        sharedPool = SharedPoolERC721(payable(address(implementation).clone(data)));
+        sharedPool = SharedPoolERC721ETH(payable(address(implementationERC721ETH).clone(data)));
 
         // transfer ownership of pair to SharedPool
         pair.transferOwnership(address(sharedPool), "");
 
-        emit CreateSharedPoolERC721(sharedPool);
+        emit CreateSharedPoolERC721ETH(sharedPool);
     }
 
-    /// @notice Creates a SharedPoolERC1155 contract
+    /// @notice Creates a SharedPoolERC721ERC20 contract
+    /// @dev Uses a modified minimal proxy contract that stores immutable parameters in code and
+    /// passes them in through calldata. See ClonesWithImmutableArgs.
+    /// @param token The ERC20 token the pair trades
+    /// @param nft The NFT used by the LSSVMPair
+    /// @param delta The initial delta value of the pair
+    /// @param spotPrice The initial spotPrice value of the pair
+    /// @param fee The trade fee value of the pair
+    /// @param propertyChecker The property checker used by the pair
+    /// @return sharedPool The created SharedPool contract
+    function createSharedPoolERC721ERC20(
+        ERC20 token,
+        ERC721 nft,
+        uint128 delta,
+        uint128 spotPrice,
+        uint96 fee,
+        address propertyChecker
+    ) external returns (SharedPoolERC721ERC20 sharedPool) {
+        // deploy trade pair with XYK curve
+        uint256[] memory empty;
+        LSSVMPair pair = pairFactory.createPairERC721ERC20(
+            LSSVMPairFactory.CreateERC721ERC20PairParams(
+                token,
+                IERC721(address(nft)),
+                xykCurve,
+                payable(address(0)),
+                LSSVMPair.PoolType.TRADE,
+                delta,
+                fee,
+                spotPrice,
+                propertyChecker,
+                empty,
+                0
+            )
+        );
+
+        // deploy shared pool
+        bytes memory data = abi.encodePacked(pair, delta, spotPrice, nft, pairFactory, token);
+        sharedPool = SharedPoolERC721ERC20(payable(address(implementationERC721ERC20).clone(data)));
+
+        // transfer ownership of pair to SharedPool
+        pair.transferOwnership(address(sharedPool), "");
+
+        emit CreateSharedPoolERC721ERC20(sharedPool);
+    }
+
+    /// @notice Creates a SharedPoolERC1155ETH contract
     /// @dev Uses a modified minimal proxy contract that stores immutable parameters in code and
     /// passes them in through calldata. See ClonesWithImmutableArgs.
     /// @param nft The NFT used by the LSSVMPair
@@ -105,9 +168,9 @@ contract SharedPoolFactory {
     /// @param fee The trade fee value of the pair
     /// @param nftId The nftId used by the pair
     /// @return sharedPool The created SharedPool contract
-    function createSharedPoolERC1155(ERC1155 nft, uint128 delta, uint128 spotPrice, uint96 fee, uint256 nftId)
+    function createSharedPoolERC1155ETH(ERC1155 nft, uint128 delta, uint128 spotPrice, uint96 fee, uint256 nftId)
         external
-        returns (SharedPoolERC1155 sharedPool)
+        returns (SharedPoolERC1155ETH sharedPool)
     {
         // deploy trade pair with XYK curve
         LSSVMPair pair = pairFactory.createPairERC1155ETH(
@@ -124,11 +187,56 @@ contract SharedPoolFactory {
 
         // deploy SharedPool
         bytes memory data = abi.encodePacked(pair, delta, spotPrice, nft, pairFactory, nftId);
-        sharedPool = SharedPoolERC1155(payable(address(implementationERC1155).clone(data)));
+        sharedPool = SharedPoolERC1155ETH(payable(address(implementationERC1155ETH).clone(data)));
 
         // transfer ownership of pair to SharedPool
         pair.transferOwnership(address(sharedPool), "");
 
-        emit CreateSharedPoolERC1155(sharedPool);
+        emit CreateSharedPoolERC1155ETH(sharedPool);
+    }
+
+    /// @notice Creates a SharedPoolERC1155ERC20 contract
+    /// @dev Uses a modified minimal proxy contract that stores immutable parameters in code and
+    /// passes them in through calldata. See ClonesWithImmutableArgs.
+    /// @param token The ERC20 token the pair trades
+    /// @param nft The NFT used by the LSSVMPair
+    /// @param delta The initial delta value of the pair
+    /// @param spotPrice The initial spotPrice value of the pair
+    /// @param fee The trade fee value of the pair
+    /// @param nftId The nftId used by the pair
+    /// @return sharedPool The created SharedPool contract
+    function createSharedPoolERC1155ERC20(
+        ERC20 token,
+        ERC1155 nft,
+        uint128 delta,
+        uint128 spotPrice,
+        uint96 fee,
+        uint256 nftId
+    ) external returns (SharedPoolERC1155ERC20 sharedPool) {
+        // deploy trade pair with XYK curve
+        LSSVMPair pair = pairFactory.createPairERC1155ERC20(
+            LSSVMPairFactory.CreateERC1155ERC20PairParams(
+                token,
+                IERC1155(address(nft)),
+                xykCurve,
+                payable(address(0)),
+                LSSVMPair.PoolType.TRADE,
+                delta,
+                fee,
+                spotPrice,
+                nftId,
+                0,
+                0
+            )
+        );
+
+        // deploy SharedPool
+        bytes memory data = abi.encodePacked(pair, delta, spotPrice, nft, pairFactory, nftId, token);
+        sharedPool = SharedPoolERC1155ERC20(payable(address(implementationERC1155ERC20).clone(data)));
+
+        // transfer ownership of pair to SharedPool
+        pair.transferOwnership(address(sharedPool), "");
+
+        emit CreateSharedPoolERC1155ERC20(sharedPool);
     }
 }

@@ -7,7 +7,7 @@ import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 
 import "./SharedPool.sol";
 
-contract SharedPoolERC721 is SharedPool, ERC721TokenReceiver {
+abstract contract SharedPoolERC721 is SharedPool, ERC721TokenReceiver {
     /// -----------------------------------------------------------------------
     /// Errors
     /// -----------------------------------------------------------------------
@@ -18,14 +18,15 @@ contract SharedPoolERC721 is SharedPool, ERC721TokenReceiver {
     /// External functions
     /// -----------------------------------------------------------------------
 
-    function deposit(uint256[] calldata nftIds, uint256 minLiquidity, address recipient)
+    function deposit(uint256[] calldata nftIds, uint256 minLiquidity, address recipient, bytes calldata extraData)
         external
         payable
         returns (uint256 liquidity)
     {
         LSSVMPair _pair = pair();
         uint256 numNfts = nftIds.length;
-        liquidity = _deposit(_pair, numNfts, minLiquidity, recipient);
+        uint256 tokenInput = _getTokenInput(extraData);
+        liquidity = _deposit(_pair, numNfts, minLiquidity, tokenInput, recipient);
 
         /// -----------------------------------------------------------------------
         /// Effects
@@ -43,8 +44,8 @@ contract SharedPoolERC721 is SharedPool, ERC721TokenReceiver {
             }
         }
 
-        // transfer ETH to pair
-        SafeTransferLib.safeTransferETH(address(_pair), msg.value);
+        // transfer tokens to pair
+        _pullTokensFromSender(token(), address(_pair), tokenInput);
     }
 
     function redeem(
@@ -54,7 +55,7 @@ contract SharedPoolERC721 is SharedPool, ERC721TokenReceiver {
         uint256 minTokenOutput,
         address recipient
     ) external returns (uint256 numNftOutput, uint256 tokenOutput) {
-        LSSVMPairETH _pair = pair();
+        LSSVMPair _pair = pair();
         (numNftOutput, tokenOutput) = _redeem(_pair, liquidity, minNumNftOutput, minTokenOutput, nftIds[0]);
 
         /// -----------------------------------------------------------------------
@@ -73,7 +74,8 @@ contract SharedPoolERC721 is SharedPool, ERC721TokenReceiver {
         _pair.withdrawERC721(IERC721(_nft), nftIds);
 
         // withdraw tokens from pair
-        _pair.withdrawETH(tokenOutput);
+        ERC20 _token = token();
+        _withdrawTokensFromPair(_token, _pair, tokenOutput);
 
         // transfer NFTs to recipient
         for (uint256 i; i < numNftOutput;) {
@@ -85,6 +87,6 @@ contract SharedPoolERC721 is SharedPool, ERC721TokenReceiver {
         }
 
         // transfer tokens to recipient
-        SafeTransferLib.safeTransferETH(recipient, tokenOutput);
+        _pushTokens(_token, recipient, tokenOutput);
     }
 }
