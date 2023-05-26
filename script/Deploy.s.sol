@@ -16,7 +16,7 @@ contract DeployScript is CREATE3Script {
 
         c = SharedPool(
             create3.deploy(
-                getCreate3SharedPoolSalt("SharedPool"), bytes.concat(type(SharedPool).creationCode, abi.encode(param))
+                getCreate3ContractSalt("SharedPool"), bytes.concat(type(SharedPool).creationCode, abi.encode(param))
             )
         );
 
