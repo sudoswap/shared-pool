@@ -10,14 +10,14 @@ import {LSSVMPairFactory} from "lssvm2/LSSVMPairFactory.sol";
 import {ERC20} from "solmate/tokens/ERC20.sol";
 import {SafeCastLib} from "solmate/utils/SafeCastLib.sol";
 import {SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
-import {ERC721, ERC721TokenReceiver} from "solmate/tokens/ERC721.sol";
+import {ERC1155, ERC1155TokenReceiver} from "solmate/tokens/ERC1155.sol";
 import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
 
-import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+import {IERC1155} from "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 
 import "./lib/Math.sol";
 
-contract SharedPool is Clone, ERC20("Sudoswap Shared Pool", "SUDO-POOL", 18), ERC721TokenReceiver {
+contract SharedPoolERC1155 is Clone, ERC20("Sudoswap Shared Pool", "SUDO-POOL", 18), ERC1155TokenReceiver {
     /// -----------------------------------------------------------------------
     /// Library usage
     /// -----------------------------------------------------------------------
@@ -37,7 +37,6 @@ contract SharedPool is Clone, ERC20("Sudoswap Shared Pool", "SUDO-POOL", 18), ER
     /// Errors
     /// -----------------------------------------------------------------------
 
-    error SharedPool__NftIdsTooShort();
     error SharedPool__InsufficientOutput();
     error SharedPool__InsufficientLiquidityMinted();
 
@@ -70,11 +69,15 @@ contract SharedPool is Clone, ERC20("Sudoswap Shared Pool", "SUDO-POOL", 18), ER
         return LSSVMPairFactory(payable(_getArgAddress(0x48)));
     }
 
+    function nftId() public pure returns (uint256) {
+        return _getArgUint256(0x5C);
+    }
+
     /// -----------------------------------------------------------------------
     /// External functions
     /// -----------------------------------------------------------------------
 
-    function deposit(uint256[] calldata nftIds, uint256 minLiquidity, address recipient)
+    function deposit(uint256 numNfts, uint256 minLiquidity, address recipient)
         external
         payable
         returns (uint256 liquidity)
@@ -83,7 +86,6 @@ contract SharedPool is Clone, ERC20("Sudoswap Shared Pool", "SUDO-POOL", 18), ER
         /// Storage loads
         /// -----------------------------------------------------------------------
 
-        uint256 numNfts = nftIds.length;
         LSSVMPairETH _pair = pair();
         uint128 virtualNftReserve = _pair.delta();
         uint128 virtualTokenReserve = _pair.spotPrice();
@@ -117,26 +119,14 @@ contract SharedPool is Clone, ERC20("Sudoswap Shared Pool", "SUDO-POOL", 18), ER
         _pair.changeDelta((virtualNftReserve + numNfts).safeCastTo128());
         _pair.changeSpotPrice((virtualTokenReserve + msg.value).safeCastTo128());
 
-        {
-            // transfer NFTs from msg.sender to pair
-            ERC721 _nft = ERC721(nft());
-            for (uint256 i; i < numNfts;) {
-                _nft.safeTransferFrom(msg.sender, address(_pair), nftIds[i]);
-
-                unchecked {
-                    ++i;
-                }
-            }
-        }
+        // transfer NFTs from msg.sender to pair
+        ERC1155(nft()).safeTransferFrom(msg.sender, address(_pair), nftId(), numNfts, "");
     }
 
-    function redeem(
-        uint256 liquidity,
-        uint256[] memory nftIds,
-        uint256 minNumNftOutput,
-        uint256 minTokenOutput,
-        address recipient
-    ) external returns (uint256 numNftOutput, uint256 tokenOutput) {
+    function redeem(uint256 liquidity, uint256 minNumNftOutput, uint256 minTokenOutput, address recipient)
+        external
+        returns (uint256 numNftOutput, uint256 tokenOutput)
+    {
         /// -----------------------------------------------------------------------
         /// Variable loads
         /// -----------------------------------------------------------------------
@@ -144,6 +134,7 @@ contract SharedPool is Clone, ERC20("Sudoswap Shared Pool", "SUDO-POOL", 18), ER
         LSSVMPairETH _pair = pair();
         uint128 virtualNftReserve = _pair.delta();
         uint128 virtualTokenReserve = _pair.spotPrice();
+        uint256 _nftId = nftId();
 
         /// -----------------------------------------------------------------------
         /// State updates
@@ -167,7 +158,7 @@ contract SharedPool is Clone, ERC20("Sudoswap Shared Pool", "SUDO-POOL", 18), ER
                 uint256 fractionalBuyNumItems = BASE - fractionalNftAmount;
                 uint256 inputValueWithoutFee =
                     (fractionalBuyNumItems * virtualTokenReserve) / (virtualNftReserve * BASE - fractionalBuyNumItems);
-                (,, uint256 royaltyAmount) = _pair.calculateRoyaltiesView(nftIds[0], inputValueWithoutFee);
+                (,, uint256 royaltyAmount) = _pair.calculateRoyaltiesView(_nftId, inputValueWithoutFee);
                 tokenOutput -= inputValueWithoutFee.mulWadUp(BASE + pairFactory().protocolFeeMultiplier() + _pair.fee())
                     + royaltyAmount;
             } else {
@@ -176,13 +167,10 @@ contract SharedPool is Clone, ERC20("Sudoswap Shared Pool", "SUDO-POOL", 18), ER
                 uint256 outputValue = (
                     (fractionalNftAmount * virtualTokenReserve) / (virtualNftReserve * BASE + fractionalNftAmount)
                 ).mulWadDown(BASE - pairFactory().protocolFeeMultiplier() - _pair.fee());
-                (,, uint256 royaltyAmount) = _pair.calculateRoyaltiesView(nftIds[0], outputValue);
+                (,, uint256 royaltyAmount) = _pair.calculateRoyaltiesView(_nftId, outputValue);
                 tokenOutput += outputValue - royaltyAmount;
             }
         }
-
-        // revert if nftIds is too short
-        if (numNftOutput > nftIds.length) revert SharedPool__NftIdsTooShort();
 
         // slippage check
         if (numNftOutput < minNumNftOutput || tokenOutput < minTokenOutput) revert SharedPool__InsufficientOutput();
@@ -200,23 +188,19 @@ contract SharedPool is Clone, ERC20("Sudoswap Shared Pool", "SUDO-POOL", 18), ER
 
         // withdraw NFTs from pair
         address _nft = nft();
-        // solhint-disable-next-line no-inline-assembly
-        assembly {
-            mstore(nftIds, numNftOutput) // update length of array
+        {
+            uint256[] memory ids = new uint256[](1);
+            ids[0] = _nftId;
+            uint256[] memory amounts = new uint256[](1);
+            amounts[0] = numNftOutput;
+            _pair.withdrawERC1155(IERC1155(_nft), ids, amounts);
         }
-        _pair.withdrawERC721(IERC721(_nft), nftIds);
 
         // withdraw tokens from pair
         _pair.withdrawETH(tokenOutput);
 
         // transfer NFTs to recipient
-        for (uint256 i; i < numNftOutput;) {
-            ERC721(_nft).safeTransferFrom(address(this), recipient, nftIds[i]);
-
-            unchecked {
-                ++i;
-            }
-        }
+        ERC1155(nft()).safeTransferFrom(address(this), recipient, _nftId, numNftOutput, "");
 
         // transfer tokens to recipient
         SafeTransferLib.safeTransferETH(recipient, tokenOutput);
@@ -229,6 +213,10 @@ contract SharedPool is Clone, ERC20("Sudoswap Shared Pool", "SUDO-POOL", 18), ER
     function getTokenReserve() external view returns (uint256 tokenReserve) {
         return _getTokenReserve(pair().spotPrice());
     }
+
+    receive() external payable {}
+
+    fallback() external payable {}
 
     /// -----------------------------------------------------------------------
     /// Internal functions
