@@ -72,4 +72,12 @@ abstract contract SharedPoolERC1155 is SharedPool, ERC1155TokenReceiver {
         // transfer tokens to recipient
         _pushTokens(_token, recipient, tokenOutput);
     }
+
+    /// -----------------------------------------------------------------------
+    /// Internal functions
+    /// -----------------------------------------------------------------------
+
+    function _getNftReserve(address _nft, LSSVMPair _pair) internal view override returns (uint256 nftReserve) {
+        return ERC1155(_nft).balanceOf(address(_pair), nftId());
+    }
 }

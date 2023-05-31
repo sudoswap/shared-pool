@@ -27,4 +27,8 @@ abstract contract SharedPoolETH is SharedPool {
     function _withdrawTokensFromPair(ERC20, LSSVMPair _pair, uint256 amount) internal override {
         LSSVMPairETH(payable(address(_pair))).withdrawETH(amount);
     }
+
+    function _getTokenReserve(ERC20, LSSVMPair _pair) internal view override returns (uint256 tokenReserve) {
+        return address(_pair).balance;
+    }
 }

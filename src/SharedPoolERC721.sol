@@ -89,4 +89,12 @@ abstract contract SharedPoolERC721 is SharedPool, ERC721TokenReceiver {
         // transfer tokens to recipient
         _pushTokens(_token, recipient, tokenOutput);
     }
+
+    /// -----------------------------------------------------------------------
+    /// Internal functions
+    /// -----------------------------------------------------------------------
+
+    function _getNftReserve(address _nft, LSSVMPair _pair) internal view override returns (uint256 nftReserve) {
+        return ERC721(_nft).balanceOf(address(_pair));
+    }
 }

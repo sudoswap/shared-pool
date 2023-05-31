@@ -71,11 +71,11 @@ abstract contract SharedPool is Clone, ERC20("Sudoswap Shared Pool", "SUDO-POOL"
     /// -----------------------------------------------------------------------
 
     function getNftReserve() external view returns (uint256 nftReserve) {
-        return _getNftReserve(pair().delta());
+        return _getNftReserve(nft(), pair());
     }
 
     function getTokenReserve() external view returns (uint256 tokenReserve) {
-        return _getTokenReserve(pair().spotPrice());
+        return _getTokenReserve(token(), pair());
     }
 
     receive() external payable {}
@@ -94,16 +94,14 @@ abstract contract SharedPool is Clone, ERC20("Sudoswap Shared Pool", "SUDO-POOL"
         /// Variable loads
         /// -----------------------------------------------------------------------
 
-        uint128 virtualNftReserve = _pair.delta();
-        uint128 virtualTokenReserve = _pair.spotPrice();
+        uint256 nftReserve = _getNftReserve(nft(), _pair);
+        uint256 tokenReserve = _getTokenReserve(token(), _pair);
 
         /// -----------------------------------------------------------------------
         /// State updates
         /// -----------------------------------------------------------------------
 
         {
-            uint256 nftReserve = _getNftReserve(virtualNftReserve);
-            uint256 tokenReserve = _getTokenReserve(virtualTokenReserve);
             uint256 _totalSupply = totalSupply;
 
             // mint liquidity tokens
@@ -123,8 +121,10 @@ abstract contract SharedPool is Clone, ERC20("Sudoswap Shared Pool", "SUDO-POOL"
         /// -----------------------------------------------------------------------
 
         // update pair params
-        _pair.changeDelta((virtualNftReserve + numNfts).safeCastTo128());
-        _pair.changeSpotPrice((virtualTokenReserve + tokenInput).safeCastTo128());
+        uint256 _initialDelta = initialDelta();
+        uint256 _initialSpotPrice = initialSpotPrice();
+        _pair.changeDelta((_initialDelta + nftReserve + numNfts).safeCastTo128());
+        _pair.changeSpotPrice((_initialSpotPrice + tokenReserve + tokenInput).safeCastTo128());
     }
 
     function _redeem(
@@ -138,8 +138,8 @@ abstract contract SharedPool is Clone, ERC20("Sudoswap Shared Pool", "SUDO-POOL"
         /// Variable loads
         /// -----------------------------------------------------------------------
 
-        uint128 virtualNftReserve = _pair.delta();
-        uint128 virtualTokenReserve = _pair.spotPrice();
+        uint256 virtualNftReserve;
+        uint256 virtualTokenReserve;
 
         /// -----------------------------------------------------------------------
         /// State updates
@@ -148,9 +148,13 @@ abstract contract SharedPool is Clone, ERC20("Sudoswap Shared Pool", "SUDO-POOL"
         // compute asset amounts corresponding to liquidity
         uint256 decimalNftAmount;
         {
+            uint256 nftReserve = _getNftReserve(nft(), _pair);
+            uint256 tokenReserve = _getTokenReserve(token(), _pair);
             uint256 _totalSupply = totalSupply;
-            decimalNftAmount = liquidity.mulDivDown(_getNftReserve(virtualNftReserve) * BASE, _totalSupply); // likely not a whole number, 18 decimals
-            tokenOutput = liquidity.mulDivDown(_getTokenReserve(virtualTokenReserve), _totalSupply);
+            decimalNftAmount = liquidity.mulDivDown(nftReserve * BASE, _totalSupply); // likely not a whole number, 18 decimals
+            tokenOutput = liquidity.mulDivDown(tokenReserve, _totalSupply);
+            virtualNftReserve = initialDelta() + nftReserve;
+            virtualTokenReserve = initialSpotPrice() + tokenReserve;
         }
 
         {
@@ -203,15 +207,9 @@ abstract contract SharedPool is Clone, ERC20("Sudoswap Shared Pool", "SUDO-POOL"
         }
     }
 
-    function _getNftReserve(uint128 delta) internal pure returns (uint256 nftReserve) {
-        // TODO: handle negative edge case
-        return delta - initialDelta();
-    }
+    function _getNftReserve(address _nft, LSSVMPair _pair) internal view virtual returns (uint256 nftReserve);
 
-    function _getTokenReserve(uint128 spotPrice) internal pure returns (uint256 tokenReserve) {
-        // TODO: handle negative edge case
-        return spotPrice - initialSpotPrice();
-    }
+    function _getTokenReserve(ERC20 _token, LSSVMPair _pair) internal view virtual returns (uint256 tokenReserve);
 
     function _getTokenInput(bytes calldata extraData) internal view virtual returns (uint256 tokenInput);
 
