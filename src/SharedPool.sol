@@ -91,6 +91,19 @@ abstract contract SharedPool is Clone, ERC20("Sudoswap Shared Pool", "SUDO-POOL"
     /// External functions
     /// -----------------------------------------------------------------------
 
+    /// @notice Syncs the Sudo pair's parameters to match the current balances. Usually used
+    /// for adding trade fees to the XYK curve reserves. deposit() and redeem() automatically
+    /// syncs the reserves so this function is not called often in practice.
+    function sync() external nonReentrant {
+        LSSVMPair _pair = pair();
+        uint256 nftReserve = _getNftReserve(nft(), _pair);
+        uint256 tokenReserve = _getTokenReserve(token(), _pair);
+        uint256 _initialDelta = initialDelta();
+        uint256 _initialSpotPrice = initialSpotPrice();
+        _pair.changeDelta((_initialDelta + nftReserve).safeCastTo128());
+        _pair.changeSpotPrice((_initialSpotPrice + tokenReserve).safeCastTo128());
+    }
+
     /// @notice Returns the number of NFTs in the Sudo pair.
     function getNftReserve() external view returns (uint256 nftReserve) {
         return _getNftReserve(nft(), pair());
