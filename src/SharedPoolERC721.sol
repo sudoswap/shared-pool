@@ -21,6 +21,7 @@ abstract contract SharedPoolERC721 is SharedPool, ERC721TokenReceiver {
     function deposit(uint256[] calldata nftIds, uint256 minLiquidity, address recipient, bytes calldata extraData)
         external
         payable
+        nonReentrant
         returns (uint256 liquidity)
     {
         LSSVMPair _pair = pair();
@@ -54,7 +55,7 @@ abstract contract SharedPoolERC721 is SharedPool, ERC721TokenReceiver {
         uint256 minNumNftOutput,
         uint256 minTokenOutput,
         address recipient
-    ) external returns (uint256 numNftOutput, uint256 tokenOutput) {
+    ) external nonReentrant returns (uint256 numNftOutput, uint256 tokenOutput) {
         LSSVMPair _pair = pair();
         (numNftOutput, tokenOutput) = _redeem(_pair, liquidity, minNumNftOutput, minTokenOutput, nftIds[0]);
 

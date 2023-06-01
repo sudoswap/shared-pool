@@ -106,6 +106,7 @@ contract SharedPoolFactory {
         // deploy shared pool
         bytes memory data = abi.encodePacked(pair, delta, spotPrice, nft, pairFactory);
         sharedPool = SharedPoolERC721ETH(payable(address(implementationERC721ETH).clone(data)));
+        sharedPool.initialize();
 
         // transfer ownership of pair to SharedPool
         pair.transferOwnership(address(sharedPool), "");
@@ -152,6 +153,7 @@ contract SharedPoolFactory {
         // deploy shared pool
         bytes memory data = abi.encodePacked(pair, delta, spotPrice, nft, pairFactory, token);
         sharedPool = SharedPoolERC721ERC20(payable(address(implementationERC721ERC20).clone(data)));
+        sharedPool.initialize();
 
         // transfer ownership of pair to SharedPool
         pair.transferOwnership(address(sharedPool), "");
@@ -188,6 +190,7 @@ contract SharedPoolFactory {
         // deploy SharedPool
         bytes memory data = abi.encodePacked(pair, delta, spotPrice, nft, pairFactory, nftId);
         sharedPool = SharedPoolERC1155ETH(payable(address(implementationERC1155ETH).clone(data)));
+        sharedPool.initialize();
 
         // transfer ownership of pair to SharedPool
         pair.transferOwnership(address(sharedPool), "");
@@ -233,6 +236,7 @@ contract SharedPoolFactory {
         // deploy SharedPool
         bytes memory data = abi.encodePacked(pair, delta, spotPrice, nft, pairFactory, nftId, token);
         sharedPool = SharedPoolERC1155ERC20(payable(address(implementationERC1155ERC20).clone(data)));
+        sharedPool.initialize();
 
         // transfer ownership of pair to SharedPool
         pair.transferOwnership(address(sharedPool), "");

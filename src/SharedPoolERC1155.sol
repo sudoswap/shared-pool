@@ -23,6 +23,7 @@ abstract contract SharedPoolERC1155 is SharedPool, ERC1155TokenReceiver {
     function deposit(uint256 numNfts, uint256 minLiquidity, address recipient, bytes calldata extraData)
         external
         payable
+        nonReentrant
         returns (uint256 liquidity)
     {
         LSSVMPair _pair = pair();
@@ -42,6 +43,7 @@ abstract contract SharedPoolERC1155 is SharedPool, ERC1155TokenReceiver {
 
     function redeem(uint256 liquidity, uint256 minNumNftOutput, uint256 minTokenOutput, address recipient)
         external
+        nonReentrant
         returns (uint256 numNftOutput, uint256 tokenOutput)
     {
         LSSVMPair _pair = pair();

@@ -11,8 +11,9 @@ import {SafeCastLib} from "solmate/utils/SafeCastLib.sol";
 import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
 
 import "./lib/Math.sol";
+import "./lib/ReentrancyGuard.sol";
 
-abstract contract SharedPool is Clone, ERC20("Sudoswap Shared Pool", "SUDO-POOL", 18) {
+abstract contract SharedPool is Clone, ERC20("Sudoswap Shared Pool", "SUDO-POOL", 18), ReentrancyGuard {
     /// -----------------------------------------------------------------------
     /// Library usage
     /// -----------------------------------------------------------------------
@@ -34,6 +35,16 @@ abstract contract SharedPool is Clone, ERC20("Sudoswap Shared Pool", "SUDO-POOL"
 
     error SharedPool__InsufficientOutput();
     error SharedPool__InsufficientLiquidityMinted();
+
+    /// -----------------------------------------------------------------------
+    /// Initialization
+    /// -----------------------------------------------------------------------
+
+    function initialize() external {
+        // no need to check if the contract is already initialized
+        // since __ReentrancyGuard_init() already does that
+        __ReentrancyGuard_init();
+    }
 
     /// -----------------------------------------------------------------------
     /// Immutable args
