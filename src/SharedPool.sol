@@ -220,6 +220,9 @@ abstract contract SharedPool is Clone, ERC20("Sudoswap Shared Pool", "SUDO-POOL"
                     _pair.calculateRoyaltiesView(royaltyAssetId, inputValueWithoutFee);
                 protocolFeeAmount = inputValueWithoutFee.mulWadUp(protocolFeeMultiplier);
                 tokenOutput -= inputValueWithoutFee.mulWadUp(BASE + protocolFeeMultiplier + _pair.fee()) + royaltyAmount;
+            } else if (fractionalNftAmount == 0) {
+                // withdrawing whole NFTs
+                numNftOutput = decimalNftAmount / BASE;
             } else {
                 // round down by simulating selling fractional NFT
                 numNftOutput = (decimalNftAmount - fractionalNftAmount) / BASE;

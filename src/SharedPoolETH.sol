@@ -17,14 +17,17 @@ abstract contract SharedPoolETH is SharedPool {
     }
 
     function _pullTokensFromSender(ERC20, address to, uint256 amount) internal override {
+        if (amount == 0) return;
         SafeTransferLib.safeTransferETH(to, amount);
     }
 
     function _pushTokens(ERC20, address to, uint256 amount) internal override {
+        if (amount == 0) return;
         SafeTransferLib.safeTransferETH(to, amount);
     }
 
     function _withdrawTokensFromPair(ERC20, LSSVMPair _pair, uint256 amount) internal override {
+        if (amount == 0) return;
         LSSVMPairETH(payable(address(_pair))).withdrawETH(amount);
     }
 

@@ -86,7 +86,7 @@ abstract contract SharedPoolERC1155 is SharedPool, ERC1155TokenReceiver {
 
         // withdraw tokens from pair
         ERC20 _token = token();
-        _withdrawTokensFromPair(_token, _pair, tokenOutput);
+        _withdrawTokensFromPair(_token, _pair, tokenOutput + royaltyAmount + protocolFeeAmount);
 
         // transfer NFTs to recipient
         ERC1155(nft()).safeTransferFrom(address(this), recipient, _nftId, numNftOutput, "");

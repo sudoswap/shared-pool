@@ -97,7 +97,7 @@ abstract contract SharedPoolERC721 is SharedPool, ERC721TokenReceiver {
 
         // withdraw tokens from pair
         ERC20 _token = token();
-        _withdrawTokensFromPair(_token, _pair, tokenOutput);
+        _withdrawTokensFromPair(_token, _pair, tokenOutput + royaltyAmount + protocolFeeAmount);
 
         // transfer NFTs to recipient
         for (uint256 i; i < numNftOutput;) {
