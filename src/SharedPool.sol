@@ -13,6 +13,10 @@ import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
 import "./lib/Math.sol";
 import "./lib/ReentrancyGuard.sol";
 
+/// @title SharedPool
+/// @author zefram.eth
+/// @notice Shared Sudoswap pair using the XYK curve. Represents liquidity shares using an ERC20 token.
+/// @dev Performs fractional swap during redemption to ensure only whole NFTs are withdrawn.
 abstract contract SharedPool is Clone, ERC20("Sudoswap Shared Pool", "SUDO-POOL", 18), ReentrancyGuard {
     /// -----------------------------------------------------------------------
     /// Library usage
@@ -40,6 +44,9 @@ abstract contract SharedPool is Clone, ERC20("Sudoswap Shared Pool", "SUDO-POOL"
     /// Initialization
     /// -----------------------------------------------------------------------
 
+    /// @notice Initializes the contract.
+    /// @dev ReentrancyGuard requires initializing the flag to 1 to save gas during
+    /// subsequent calls.
     function initialize() external {
         // no need to check if the contract is already initialized
         // since __ReentrancyGuard_init() already does that
@@ -56,41 +63,48 @@ abstract contract SharedPool is Clone, ERC20("Sudoswap Shared Pool", "SUDO-POOL"
     }
 
     /// @notice The initial delta value of the Sudo XYK curve pool. Used for computing NFT balance
-    /// changes in the Sudo pool, since the delta stores the virtual NFT balance.
+    /// changes in the Sudo pair, since the delta stores the virtual NFT balance.
     function initialDelta() public pure returns (uint128 initialDelta_) {
         return _getArgUint128(0x14);
     }
 
     /// @notice The initial delta value of the Sudo XYK curve pool. Used for computing token balance
-    /// changes in the Sudo pool, since the spot price stores the virtual token balance.
+    /// changes in the Sudo pair, since the spot price stores the virtual token balance.
     function initialSpotPrice() public pure returns (uint128) {
         return _getArgUint128(0x24);
     }
 
+    /// @notice The NFT used by the Sudo pair.
     function nft() public pure returns (address) {
         return _getArgAddress(0x34);
     }
 
+    /// @notice The Sudoswap LSSVMPairFactory contract
     function pairFactory() public pure returns (LSSVMPairFactory) {
         return LSSVMPairFactory(payable(_getArgAddress(0x48)));
     }
 
+    /// @notice The token used by the Sudo pair. Returns 0 for ETH pools.
     function token() public pure virtual returns (ERC20);
 
     /// -----------------------------------------------------------------------
     /// External functions
     /// -----------------------------------------------------------------------
 
+    /// @notice Returns the number of NFTs in the Sudo pair.
     function getNftReserve() external view returns (uint256 nftReserve) {
         return _getNftReserve(nft(), pair());
     }
 
+    /// @notice Returns the token balance of the Sudo pair.
     function getTokenReserve() external view returns (uint256 tokenReserve) {
         return _getTokenReserve(token(), pair());
     }
 
+    /// @dev Included to silence compiler warnings
     receive() external payable {}
 
+    /// @dev Clone contracts with immutable args must use fallback() to receive Ether since the calldata is never empty.
     fallback() external payable {}
 
     /// -----------------------------------------------------------------------

@@ -18,6 +18,12 @@ abstract contract SharedPoolERC721 is SharedPool, ERC721TokenReceiver {
     /// External functions
     /// -----------------------------------------------------------------------
 
+    /// @notice Deposits NFTs into the Sudo pair and mints LP tokens.
+    /// @param nftIds The list of NFT IDs to deposit
+    /// @param minLiquidity Used for slippage checking. The minimum acceptable amount of LP tokens minted.
+    /// @param recipient The recipient of the minted tokens
+    /// @param extraData Used by SharedPoolERC20 to store the amount of tokens to deposit. Leave empty for SharedPoolETH.
+    /// @param liquidity The amount of LP tokens minted
     function deposit(uint256[] calldata nftIds, uint256 minLiquidity, address recipient, bytes calldata extraData)
         external
         payable
@@ -49,6 +55,16 @@ abstract contract SharedPoolERC721 is SharedPool, ERC721TokenReceiver {
         _pullTokensFromSender(token(), address(_pair), tokenInput);
     }
 
+    /// @notice Burns LP tokens to withdrawn NFTs and tokens.
+    /// @dev Performs fractional swap to ensure whole NFTs are withdrawn. Will change the price
+    /// of the Sudo pair as a normal swap would.
+    /// @param liquidity The amount of LP tokens to burn
+    /// @param nftIds The list of NFTs to withdraw. If the NFT output is less than the list's length, the front of the list will be used.
+    /// @param minNumNftOutput Used for slippage checking. The minimum acceptable number of NFTs withdrawn.
+    /// @param minTokenOutput Used for slippage checking. The minimum acceptable amount of tokens withdrawn.
+    /// @param recipient The recipient of the NFTs and tokens withdrawn
+    /// @return numNftOutput The number of NFTs withdrawn
+    /// @return tokenOutput The amount of tokens withdrawn
     function redeem(
         uint256 liquidity,
         uint256[] memory nftIds,
