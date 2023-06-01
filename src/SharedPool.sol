@@ -171,7 +171,17 @@ abstract contract SharedPool is Clone, ERC20("Sudoswap Shared Pool", "SUDO-POOL"
         uint256 minNumNftOutput,
         uint256 minTokenOutput,
         uint256 royaltyAssetId
-    ) internal returns (uint256 numNftOutput, uint256 tokenOutput) {
+    )
+        internal
+        returns (
+            uint256 numNftOutput,
+            uint256 tokenOutput,
+            address payable[] memory royaltyRecipients,
+            uint256[] memory royaltyAmounts,
+            uint256 royaltyAmount,
+            uint256 protocolFeeAmount
+        )
+    {
         /// -----------------------------------------------------------------------
         /// Variable loads
         /// -----------------------------------------------------------------------
@@ -198,6 +208,7 @@ abstract contract SharedPool is Clone, ERC20("Sudoswap Shared Pool", "SUDO-POOL"
         {
             // modify asset amounts so that the NFT amount is a whole number
             // this is done by simulating swapping the fractional amount (either round up or down)
+            uint256 protocolFeeMultiplier = pairFactory().protocolFeeMultiplier();
             uint256 fractionalNftAmount = decimalNftAmount % BASE;
             if (fractionalNftAmount >= HALF_BASE) {
                 // round up by simulating buying fractional NFT
@@ -205,16 +216,19 @@ abstract contract SharedPool is Clone, ERC20("Sudoswap Shared Pool", "SUDO-POOL"
                 uint256 fractionalBuyNumItems = BASE - fractionalNftAmount;
                 uint256 inputValueWithoutFee =
                     (fractionalBuyNumItems * virtualTokenReserve) / (virtualNftReserve * BASE - fractionalBuyNumItems);
-                (,, uint256 royaltyAmount) = _pair.calculateRoyaltiesView(royaltyAssetId, inputValueWithoutFee);
-                tokenOutput -= inputValueWithoutFee.mulWadUp(BASE + pairFactory().protocolFeeMultiplier() + _pair.fee())
-                    + royaltyAmount;
+                (royaltyRecipients, royaltyAmounts, royaltyAmount) =
+                    _pair.calculateRoyaltiesView(royaltyAssetId, inputValueWithoutFee);
+                protocolFeeAmount = inputValueWithoutFee.mulWadUp(protocolFeeMultiplier);
+                tokenOutput -= inputValueWithoutFee.mulWadUp(BASE + protocolFeeMultiplier + _pair.fee()) + royaltyAmount;
             } else {
                 // round down by simulating selling fractional NFT
                 numNftOutput = (decimalNftAmount - fractionalNftAmount) / BASE;
-                uint256 outputValue = (
-                    (fractionalNftAmount * virtualTokenReserve) / (virtualNftReserve * BASE + fractionalNftAmount)
-                ).mulWadDown(BASE - pairFactory().protocolFeeMultiplier() - _pair.fee());
-                (,, uint256 royaltyAmount) = _pair.calculateRoyaltiesView(royaltyAssetId, outputValue);
+                uint256 outputValueWithoutFee =
+                    ((fractionalNftAmount * virtualTokenReserve) / (virtualNftReserve * BASE + fractionalNftAmount));
+                protocolFeeAmount = outputValueWithoutFee.mulWadUp(protocolFeeMultiplier);
+                uint256 outputValue = outputValueWithoutFee.mulWadDown(BASE - protocolFeeMultiplier - _pair.fee());
+                (royaltyRecipients, royaltyAmounts, royaltyAmount) =
+                    _pair.calculateRoyaltiesView(royaltyAssetId, outputValue);
                 tokenOutput += outputValue - royaltyAmount;
             }
         }

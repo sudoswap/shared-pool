@@ -63,7 +63,12 @@ abstract contract SharedPoolERC1155 is SharedPool, ERC1155TokenReceiver {
     {
         LSSVMPair _pair = pair();
         uint256 _nftId = nftId();
-        (numNftOutput, tokenOutput) = _redeem(_pair, liquidity, minNumNftOutput, minTokenOutput, _nftId);
+        address payable[] memory royaltyRecipients;
+        uint256[] memory royaltyAmounts;
+        uint256 royaltyAmount;
+        uint256 protocolFeeAmount;
+        (numNftOutput, tokenOutput, royaltyRecipients, royaltyAmounts, royaltyAmount, protocolFeeAmount) =
+            _redeem(_pair, liquidity, minNumNftOutput, minTokenOutput, _nftId);
 
         /// -----------------------------------------------------------------------
         /// Effects
@@ -88,6 +93,19 @@ abstract contract SharedPoolERC1155 is SharedPool, ERC1155TokenReceiver {
 
         // transfer tokens to recipient
         _pushTokens(_token, recipient, tokenOutput);
+
+        // transfer protocol fees to factory
+        _pushTokens(_token, address(pairFactory()), protocolFeeAmount);
+
+        // transfer royalties
+        if (royaltyAmount != 0) {
+            for (uint256 i; i < royaltyRecipients.length;) {
+                _pushTokens(_token, royaltyRecipients[i], royaltyAmounts[i]);
+                unchecked {
+                    ++i;
+                }
+            }
+        }
     }
 
     /// -----------------------------------------------------------------------

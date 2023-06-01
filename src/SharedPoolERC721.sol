@@ -73,7 +73,12 @@ abstract contract SharedPoolERC721 is SharedPool, ERC721TokenReceiver {
         address recipient
     ) external nonReentrant returns (uint256 numNftOutput, uint256 tokenOutput) {
         LSSVMPair _pair = pair();
-        (numNftOutput, tokenOutput) = _redeem(_pair, liquidity, minNumNftOutput, minTokenOutput, nftIds[0]);
+        address payable[] memory royaltyRecipients;
+        uint256[] memory royaltyAmounts;
+        uint256 royaltyAmount;
+        uint256 protocolFeeAmount;
+        (numNftOutput, tokenOutput, royaltyRecipients, royaltyAmounts, royaltyAmount, protocolFeeAmount) =
+            _redeem(_pair, liquidity, minNumNftOutput, minTokenOutput, nftIds[0]);
 
         /// -----------------------------------------------------------------------
         /// Effects
@@ -105,6 +110,19 @@ abstract contract SharedPoolERC721 is SharedPool, ERC721TokenReceiver {
 
         // transfer tokens to recipient
         _pushTokens(_token, recipient, tokenOutput);
+
+        // transfer protocol fees to factory
+        _pushTokens(_token, address(pairFactory()), protocolFeeAmount);
+
+        // transfer royalties
+        if (royaltyAmount != 0) {
+            for (uint256 i; i < royaltyRecipients.length;) {
+                _pushTokens(_token, royaltyRecipients[i], royaltyAmounts[i]);
+                unchecked {
+                    ++i;
+                }
+            }
+        }
     }
 
     /// -----------------------------------------------------------------------
