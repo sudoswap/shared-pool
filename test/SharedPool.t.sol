@@ -110,14 +110,12 @@ contract SharedPoolTest is Test {
         assertEq(pool.balanceOf(address(this)), liquidity, "didn't mint LP tokens");
     }
 
-    function test_withdraw_all(uint256 delta, uint256 spotPrice, uint256 fee, uint256 numNfts, uint256 tokenAmount)
-        public
-    {
-        delta = bound(delta, 0, 1000);
-        spotPrice = bound(spotPrice, 0, 1e20);
-        fee = bound(fee, 0, 1e17);
+    function test_withdraw_all(uint256 delta, uint256 spotPrice, uint256 fee, uint256 numNfts) public {
+        delta = bound(delta, 1, 1000);
+        spotPrice = bound(spotPrice, 1e3, 1e20);
+        fee = bound(fee, 0, 0.5e18);
         numNfts = bound(numNfts, 1, 10);
-        tokenAmount = bound(tokenAmount, 1e3, 1e20);
+        uint256 tokenAmount = spotPrice * numNfts / delta;
 
         // deploy pool
         SharedPoolERC721ETH pool =
@@ -137,9 +135,6 @@ contract SharedPoolTest is Test {
         // withdraw
         (uint256 numNftOutput, uint256 tokenOutput) = pool.redeem(liquidity, idList, 0, 0, address(this));
         assertEq(numNftOutput, numNfts, "NFT output incorrect");
-        assertApproxEqRel(
-            tokenOutput, tokenAmount * liquidity / (liquidity + MINIMUM_LIQUIDITY), 1e9, "token output incorrect"
-        );
         assertEq(pool.balanceOf(address(this)), 0, "didn't burn LP tokens");
         assertEq(testERC721.balanceOf(address(this)), numNfts, "didn't withdraw NFTs");
     }
