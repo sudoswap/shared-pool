@@ -37,6 +37,7 @@ abstract contract SharedPool is Clone, ERC20("Sudoswap Shared Pool", "SUDO-POOL"
     /// Errors
     /// -----------------------------------------------------------------------
 
+    error SharedPool__ZeroInput();
     error SharedPool__InsufficientOutput();
     error SharedPool__InsufficientLiquidityMinted();
 
@@ -129,6 +130,12 @@ abstract contract SharedPool is Clone, ERC20("Sudoswap Shared Pool", "SUDO-POOL"
         returns (uint256 liquidity)
     {
         /// -----------------------------------------------------------------------
+        /// Verification
+        /// -----------------------------------------------------------------------
+
+        if (numNfts == 0) revert SharedPool__ZeroInput();
+
+        /// -----------------------------------------------------------------------
         /// Variable loads
         /// -----------------------------------------------------------------------
 
@@ -182,6 +189,12 @@ abstract contract SharedPool is Clone, ERC20("Sudoswap Shared Pool", "SUDO-POOL"
             uint256 protocolFeeAmount
         )
     {
+        /// -----------------------------------------------------------------------
+        /// Verification
+        /// -----------------------------------------------------------------------
+
+        if (liquidity == 0) revert SharedPool__ZeroInput();
+
         /// -----------------------------------------------------------------------
         /// Variable loads
         /// -----------------------------------------------------------------------
