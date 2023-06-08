@@ -1,6 +1,15 @@
 name: test
 
-on: workflow_dispatch
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "**.md"
+  pull_request:
+    branches: [main]
+    paths-ignore:
+      - "**.md"
 
 env:
   FOUNDRY_PROFILE: ci
@@ -30,5 +39,22 @@ jobs:
 
       - name: Run Forge tests
         run: |
-          FOUNDRY_PROFILE=ci forge test -vvv
+          forge test -vvv
         id: test
+
+      - name: Run Forge coverage
+        run: |
+          forge coverage --report lcov
+        id: coverage
+
+      - name: Setup LCOV
+        run: echo "Installing lcov"; sudo apt-get install lcov > /dev/null
+
+      - name: Clean LCOV
+        run: |
+          lcov --remove lcov.info -o lcov.info 'test/*' 'script/*' 'src/lib/*'
+
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v3.1.1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
