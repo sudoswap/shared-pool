@@ -39,6 +39,7 @@ abstract contract SharedPool is Clone, ERC20("Sudoswap Shared Pool", "SUDO-POOL"
 
     error SharedPool__ZeroInput();
     error SharedPool__InsufficientOutput();
+    error SharedPool__RedeemAmountTooSmall();
     error SharedPool__InsufficientLiquidityMinted();
 
     /// -----------------------------------------------------------------------
@@ -214,6 +215,7 @@ abstract contract SharedPool is Clone, ERC20("Sudoswap Shared Pool", "SUDO-POOL"
             uint256 _totalSupply = totalSupply;
             decimalNftAmount = liquidity.mulDivDown(nftReserve * BASE, _totalSupply); // likely not a whole number, 18 decimals
             tokenOutput = liquidity.mulDivDown(tokenReserve, _totalSupply);
+            if (decimalNftAmount == 0 && tokenOutput == 0) revert SharedPool__RedeemAmountTooSmall();
             virtualNftReserve = initialDelta() + nftReserve;
             virtualTokenReserve = initialSpotPrice() + tokenReserve;
         }
@@ -223,7 +225,8 @@ abstract contract SharedPool is Clone, ERC20("Sudoswap Shared Pool", "SUDO-POOL"
             // this is done by simulating swapping the fractional amount (either round up or down)
             uint256 protocolFeeMultiplier = pairFactory().protocolFeeMultiplier();
             uint256 fractionalNftAmount = decimalNftAmount % BASE;
-            uint256 fractionalTokenAmount = fractionalNftAmount.mulDivDown(tokenOutput, decimalNftAmount);
+            uint256 fractionalTokenAmount =
+                decimalNftAmount == 0 ? 0 : fractionalNftAmount.mulDivDown(tokenOutput, decimalNftAmount);
             if (fractionalNftAmount >= HALF_BASE) {
                 // round up by simulating buying fractional NFT
                 // steps:
@@ -239,9 +242,7 @@ abstract contract SharedPool is Clone, ERC20("Sudoswap Shared Pool", "SUDO-POOL"
                 protocolFeeAmount = inputValueWithoutFee.mulWadUp(protocolFeeMultiplier);
                 uint256 inputValue =
                     inputValueWithoutFee.mulWadUp(BASE + protocolFeeMultiplier + _pair.fee()) + royaltyAmount;
-                tokenOutput -= inputValue;
-                // TODO: not sure if it's possible for tokenOutput < inputValue to be true
-                /*if (tokenOutput >= inputValue) {
+                if (tokenOutput >= inputValue) {
                     tokenOutput -= inputValue;
                 } else {
                     // token output isn't enough to purchase fractional NFT & round up
@@ -250,14 +251,15 @@ abstract contract SharedPool is Clone, ERC20("Sudoswap Shared Pool", "SUDO-POOL"
                     // 1. remove fractional NFT & corresponding tokens from liquidity
                     // 2. sell fractional NFT to remaining liquidity
                     numNftOutput -= 1;
-                    uint256 outputValueWithoutFee =
-                        (fractionalNftAmount * (virtualTokenReserve - fractionalTokenAmount)) / (virtualNftReserve * BASE);
+                    uint256 outputValueWithoutFee = (
+                        fractionalNftAmount * (virtualTokenReserve - fractionalTokenAmount)
+                    ) / (virtualNftReserve * BASE);
                     protocolFeeAmount = outputValueWithoutFee.mulWadUp(protocolFeeMultiplier);
                     uint256 outputValue = outputValueWithoutFee.mulWadDown(BASE - protocolFeeMultiplier - _pair.fee());
                     (royaltyRecipients, royaltyAmounts, royaltyAmount) =
                         _pair.calculateRoyaltiesView(royaltyAssetId, outputValue);
                     tokenOutput += outputValue - royaltyAmount;
-                }*/
+                }
             } else if (fractionalNftAmount == 0) {
                 // withdrawing whole NFTs
                 numNftOutput = decimalNftAmount / BASE;
