@@ -20,20 +20,33 @@ abstract contract SharedPoolERC721 is SharedPool, ERC721TokenReceiver {
 
     /// @notice Deposits NFTs into the Sudo pair and mints LP tokens.
     /// @param nftIds The list of NFT IDs to deposit
-    /// @param minLiquidity Used for slippage checking. The minimum acceptable amount of LP tokens minted.
+    /// @param amountNftMin The minimum acceptable number of NFTs deposited
+    /// @param amountTokenMin The minimum acceptable amount of tokens deposited
     /// @param recipient The recipient of the minted tokens
+    /// @param deadline The Unix timestamp (in seconds) after which the transaction should revert
     /// @param extraData Used by SharedPoolERC20 to store the amount of tokens to deposit. Leave empty for SharedPoolETH.
-    /// @param liquidity The amount of LP tokens minted
-    function deposit(uint256[] calldata nftIds, uint256 minLiquidity, address recipient, bytes calldata extraData)
+    /// @return amountNft The number of NFTs deposited
+    /// @return amountToken The amount of tokens deposited
+    /// @return liquidity The amount of LP tokens minted
+    function deposit(
+        uint256[] calldata nftIds,
+        uint256 amountNftMin,
+        uint256 amountTokenMin,
+        address recipient,
+        uint256 deadline,
+        bytes calldata extraData
+    )
         external
         payable
         nonReentrant
-        returns (uint256 liquidity)
+        beforeDeadline(deadline)
+        returns (uint256 amountNft, uint256 amountToken, uint256 liquidity)
     {
         LSSVMPair _pair = pair();
-        uint256 numNfts = nftIds.length;
-        uint256 tokenInput = _getTokenInput(extraData);
-        liquidity = _deposit(_pair, numNfts, minLiquidity, tokenInput, recipient);
+        uint256 amountNftDesired = nftIds.length;
+        uint256 amountTokenDesired = _getTokenInput(extraData);
+        (amountNft, amountToken, liquidity) =
+            _deposit(_pair, amountNftDesired, amountTokenDesired, amountNftMin, amountTokenMin, recipient);
 
         /// -----------------------------------------------------------------------
         /// Effects
@@ -42,7 +55,7 @@ abstract contract SharedPoolERC721 is SharedPool, ERC721TokenReceiver {
         {
             // transfer NFTs from msg.sender to pair
             ERC721 _nft = ERC721(nft());
-            for (uint256 i; i < numNfts;) {
+            for (uint256 i; i < amountNft;) {
                 _nft.safeTransferFrom(msg.sender, address(_pair), nftIds[i]);
 
                 unchecked {
@@ -52,7 +65,7 @@ abstract contract SharedPoolERC721 is SharedPool, ERC721TokenReceiver {
         }
 
         // transfer tokens to pair
-        _pullTokensFromSender(token(), address(_pair), tokenInput);
+        _pullTokensFromSender(token(), address(_pair), amountToken);
     }
 
     /// @notice Burns LP tokens to withdrawn NFTs and tokens.
@@ -70,8 +83,9 @@ abstract contract SharedPoolERC721 is SharedPool, ERC721TokenReceiver {
         uint256[] memory nftIds,
         uint256 minNumNftOutput,
         uint256 minTokenOutput,
-        address recipient
-    ) external nonReentrant returns (uint256 numNftOutput, uint256 tokenOutput) {
+        address recipient,
+        uint256 deadline
+    ) external nonReentrant beforeDeadline(deadline) returns (uint256 numNftOutput, uint256 tokenOutput) {
         LSSVMPair _pair = pair();
         address payable[] memory royaltyRecipients;
         uint256[] memory royaltyAmounts;

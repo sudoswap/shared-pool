@@ -17,8 +17,16 @@ abstract contract SharedPoolETH is SharedPool {
     }
 
     function _pullTokensFromSender(ERC20, address to, uint256 amount) internal override {
-        if (amount == 0) return;
-        SafeTransferLib.safeTransferETH(to, amount);
+        if (amount != 0) {
+            SafeTransferLib.safeTransferETH(to, amount);
+        }
+
+        // refund msg.value - amount
+        uint256 refundAmount = msg.value - amount;
+        uint256 transferCost = 21000 * block.basefee;
+        if (refundAmount > transferCost) {
+            SafeTransferLib.safeTransferETH(msg.sender, refundAmount);
+        }
     }
 
     function _pushTokens(ERC20, address to, uint256 amount) internal override {

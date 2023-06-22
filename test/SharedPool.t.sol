@@ -91,12 +91,12 @@ contract SharedPoolTest is Test {
         assertEq(address(pool.token()), address(0));
     }
 
-    function test_deposit(uint256 delta, uint256 spotPrice, uint256 fee, uint256 numNfts, uint256 tokenAmount) public {
-        delta = bound(delta, 0, 1000);
-        spotPrice = bound(spotPrice, 0, 1e20);
+    function test_deposit(uint256 delta, uint256 spotPrice, uint256 fee, uint256 numNfts) public {
+        delta = bound(delta, 1, 1000);
+        spotPrice = bound(spotPrice, 1e3, 1e20);
         fee = bound(fee, 0, 1e17);
         numNfts = bound(numNfts, 1, 10);
-        tokenAmount = bound(tokenAmount, 1, 1e20);
+        uint256 tokenAmount = spotPrice * numNfts / delta;
 
         // deploy pool
         SharedPoolERC721ETH pool =
@@ -111,9 +111,12 @@ contract SharedPoolTest is Test {
 
         // deposit
         deal(address(this), tokenAmount);
-        uint256 liquidity = pool.deposit{value: tokenAmount}(idList, 0, address(this), bytes(""));
+        (uint256 amountNft, uint256 amountToken, uint256 liquidity) =
+            pool.deposit{value: tokenAmount}(idList, 0, 0, address(this), block.timestamp, bytes(""));
         assertGt(liquidity, 0, "minted 0 liquidity");
         assertEq(pool.balanceOf(address(this)), liquidity, "didn't mint LP tokens");
+        assertEq(numNfts - testERC721.balanceOf(address(this)), amountNft, "deposited NFT amount incorrect");
+        assertEq(tokenAmount - address(this).balance, amountToken, "deposited token amount incorrect");
     }
 
     function test_withdraw_all(uint256 delta, uint256 spotPrice, uint256 fee, uint256 numNfts) public {
@@ -136,10 +139,12 @@ contract SharedPoolTest is Test {
 
         // deposit
         deal(address(this), tokenAmount);
-        uint256 liquidity = pool.deposit{value: tokenAmount}(idList, 0, address(this), bytes(""));
+        (,, uint256 liquidity) =
+            pool.deposit{value: tokenAmount}(idList, 0, 0, address(this), block.timestamp, bytes(""));
 
         // withdraw
-        (uint256 numNftOutput, uint256 tokenOutput) = pool.redeem(liquidity, idList, 0, 0, address(this));
+        (uint256 numNftOutput, uint256 tokenOutput) =
+            pool.redeem(liquidity, idList, 0, 0, address(this), block.timestamp);
         assertEq(numNftOutput, numNfts, "NFT output incorrect");
         assertEq(pool.balanceOf(address(this)), 0, "didn't burn LP tokens");
         assertEq(testERC721.balanceOf(address(this)), numNfts, "didn't withdraw NFTs");
@@ -171,7 +176,8 @@ contract SharedPoolTest is Test {
 
         // deposit
         deal(address(this), tokenAmount);
-        uint256 liquidity = pool.deposit{value: tokenAmount}(idList, 0, address(this), bytes(""));
+        (,, uint256 liquidity) =
+            pool.deposit{value: tokenAmount}(idList, 0, 0, address(this), block.timestamp, bytes(""));
 
         // withdraw
         liquidityToWithdraw = bound(liquidityToWithdraw, 1, liquidity);
@@ -196,7 +202,8 @@ contract SharedPoolTest is Test {
         }
 
         // burn liquidity tokens to withdraw assets
-        (uint256 numNftOutput, uint256 tokenOutput) = pool.redeem(liquidityToWithdraw, idList, 0, 0, address(this));
+        (uint256 numNftOutput, uint256 tokenOutput) =
+            pool.redeem(liquidityToWithdraw, idList, 0, 0, address(this), block.timestamp);
 
         // expected NFT output depends on whether rounding up or down happens
         uint256 expectedNumNftOutput = fractionalNftAmount >= HALF_BASE
@@ -231,7 +238,7 @@ contract SharedPoolTest is Test {
 
         // deposit
         deal(address(this), tokenAmount);
-        pool.deposit{value: tokenAmount}(idList, 0, address(this), bytes(""));
+        pool.deposit{value: tokenAmount}(idList, 0, 0, address(this), block.timestamp, bytes(""));
 
         uint256 beforeDelta = pool.pair().delta();
         uint256 beforeSpotPrice = pool.pair().spotPrice();
@@ -277,7 +284,7 @@ contract SharedPoolTest is Test {
 
         // deposit
         deal(address(this), tokenAmount);
-        pool.deposit{value: tokenAmount}(idList, 0, address(this), bytes(""));
+        pool.deposit{value: tokenAmount}(idList, 0, 0, address(this), block.timestamp, bytes(""));
 
         LSSVMPair pair = pool.pair();
         uint256 beforeDelta = pair.delta();

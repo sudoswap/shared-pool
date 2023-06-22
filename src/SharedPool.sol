@@ -38,9 +38,20 @@ abstract contract SharedPool is Clone, ERC20("Sudoswap Shared Pool", "SUDO-POOL"
     /// -----------------------------------------------------------------------
 
     error SharedPool__ZeroInput();
+    error SharedPool__DeadlinePassed();
     error SharedPool__InsufficientOutput();
     error SharedPool__RedeemAmountTooSmall();
-    error SharedPool__InsufficientLiquidityMinted();
+    error SharedPool__InsufficientNftAmount();
+    error SharedPool__InsufficientTokenAmount();
+
+    /// -----------------------------------------------------------------------
+    /// Modifiers
+    /// -----------------------------------------------------------------------
+
+    modifier beforeDeadline(uint256 deadline) {
+        if (block.timestamp > deadline) revert SharedPool__DeadlinePassed();
+        _;
+    }
 
     /// -----------------------------------------------------------------------
     /// Initialization
@@ -126,15 +137,19 @@ abstract contract SharedPool is Clone, ERC20("Sudoswap Shared Pool", "SUDO-POOL"
     /// Internal functions
     /// -----------------------------------------------------------------------
 
-    function _deposit(LSSVMPair _pair, uint256 numNfts, uint256 minLiquidity, uint256 tokenInput, address recipient)
-        internal
-        returns (uint256 liquidity)
-    {
+    function _deposit(
+        LSSVMPair _pair,
+        uint256 amountNftDesired,
+        uint256 amountTokenDesired,
+        uint256 amountNftMin,
+        uint256 amountTokenMin,
+        address recipient
+    ) internal returns (uint256 amountNft, uint256 amountToken, uint256 liquidity) {
         /// -----------------------------------------------------------------------
         /// Verification
         /// -----------------------------------------------------------------------
 
-        if (numNfts == 0) revert SharedPool__ZeroInput();
+        if (amountNftDesired == 0 && amountTokenDesired == 0) revert SharedPool__ZeroInput();
 
         /// -----------------------------------------------------------------------
         /// Variable loads
@@ -142,23 +157,39 @@ abstract contract SharedPool is Clone, ERC20("Sudoswap Shared Pool", "SUDO-POOL"
 
         uint256 nftReserve = _getNftReserve(nft(), _pair);
         uint256 tokenReserve = _getTokenReserve(token(), _pair);
+        uint256 virtualNftReserve = initialDelta() + nftReserve;
+        uint256 virtualTokenReserve = initialSpotPrice() + tokenReserve;
 
         /// -----------------------------------------------------------------------
         /// State updates
         /// -----------------------------------------------------------------------
 
+        // compute the correct amount of NFTs and tokens to add so that the current proportion of assets in the pool is maintained
+        {
+            uint256 amountTokenOptimal = amountNftDesired.mulDivUp(virtualTokenReserve, virtualNftReserve);
+            if (amountTokenOptimal <= amountTokenDesired) {
+                if (amountTokenOptimal < amountTokenMin) revert SharedPool__InsufficientTokenAmount();
+                (amountNft, amountToken) = (amountNftDesired, amountTokenOptimal);
+            } else {
+                uint256 amountNftOptimal = amountTokenDesired.mulDivUp(virtualNftReserve, virtualTokenReserve);
+                assert(amountNftOptimal <= amountNftDesired);
+                if (amountNftOptimal < amountNftMin) revert SharedPool__InsufficientNftAmount();
+                (amountNft, amountToken) = (amountNftOptimal, amountTokenDesired);
+            }
+        }
+
+        // mint liquidity tokens
         {
             uint256 _totalSupply = totalSupply;
 
-            // mint liquidity tokens
             if (_totalSupply == 0) {
-                liquidity = (numNfts * BASE * tokenInput).sqrt() - MINIMUM_LIQUIDITY;
+                liquidity = (amountNft * BASE * amountToken).sqrt() - MINIMUM_LIQUIDITY;
                 _mint(address(0), MINIMUM_LIQUIDITY); // permanently lock the first MINIMUM_LIQUIDITY tokens
             } else {
-                liquidity =
-                    min(numNfts.mulDivDown(_totalSupply, nftReserve), tokenInput.mulDivDown(_totalSupply, tokenReserve));
+                liquidity = min(
+                    amountNft.mulDivDown(_totalSupply, nftReserve), amountToken.mulDivDown(_totalSupply, tokenReserve)
+                );
             }
-            if (liquidity < minLiquidity) revert SharedPool__InsufficientLiquidityMinted();
             _mint(recipient, liquidity);
         }
 
@@ -167,10 +198,8 @@ abstract contract SharedPool is Clone, ERC20("Sudoswap Shared Pool", "SUDO-POOL"
         /// -----------------------------------------------------------------------
 
         // update pair params
-        uint256 _initialDelta = initialDelta();
-        uint256 _initialSpotPrice = initialSpotPrice();
-        _pair.changeDelta((_initialDelta + nftReserve + numNfts).safeCastTo128());
-        _pair.changeSpotPrice((_initialSpotPrice + tokenReserve + tokenInput).safeCastTo128());
+        _pair.changeDelta((virtualNftReserve + amountNft).safeCastTo128());
+        _pair.changeSpotPrice((virtualTokenReserve + amountToken).safeCastTo128());
     }
 
     function _redeem(
