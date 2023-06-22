@@ -1,19 +1,13 @@
-# Foundry template
+# Shared Pool for Sudoswap
 
-This is a template for a Foundry project.
+Shared Sudoswap pair using the XYK curve that represents liquidity shares using an ERC20 token. Performs fractional swap during redemption to ensure only whole NFTs are withdrawn.
 
 ## Installation
-
-To install with [DappTools](https://github.com/dapphub/dapptools):
-
-```
-dapp install [user]/[repo]
-```
 
 To install with [Foundry](https://github.com/gakonst/foundry):
 
 ```
-forge install [user]/[repo]
+forge install sudoswap/shared-pool
 ```
 
 ## Local development
