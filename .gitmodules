@@ -16,3 +16,6 @@
 [submodule "lib/royalty-registry-solidity"]
 	path = lib/royalty-registry-solidity
 	url = https://github.com/manifoldxyz/royalty-registry-solidity
+[submodule "lib/lssvm2"]
+	path = lib/lssvm2
+	url = https://github.com/sudoswap/lssvm2
