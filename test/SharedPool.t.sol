@@ -7,6 +7,8 @@ import {RoyaltyEngine} from "lssvm2/RoyaltyEngine.sol";
 import {XykCurve} from "lssvm2/bonding-curves/XykCurve.sol";
 import {LSSVMPair, LSSVMPairFactory} from "lssvm2/LSSVMPairFactory.sol";
 import {LSSVMPairETH} from "lssvm2/LSSVMPairETH.sol";
+import {LSSVMPairERC20} from "lssvm2/LSSVMPairERC20.sol";
+import {LSSVMPairERC1155} from "lssvm2/erc1155/LSSVMPairERC1155.sol";
 import {LSSVMPairERC721ETH} from "lssvm2/erc721/LSSVMPairERC721ETH.sol";
 import {LSSVMPairERC1155ETH} from "lssvm2/erc1155/LSSVMPairERC1155ETH.sol";
 import {LSSVMPairERC721ERC20} from "lssvm2/erc721/LSSVMPairERC721ERC20.sol";
@@ -91,6 +93,65 @@ contract SharedPoolTest is Test {
         assertEq(address(pool.token()), address(0));
     }
 
+    function test_createSharedPoolERC721ERC20(uint256 delta, uint256 spotPrice, uint256 fee) public {
+        delta = bound(delta, 0, 1000);
+        spotPrice = bound(spotPrice, 0, 1e20);
+        fee = bound(fee, 0, 1e17);
+
+        SharedPoolERC721ERC20 pool = factory.createSharedPoolERC721ERC20(
+            testERC20, testERC721, uint128(delta), uint128(spotPrice), uint96(fee), address(0)
+        );
+        assertEq(pool.pair().delta(), delta);
+        assertEq(pool.pair().spotPrice(), spotPrice);
+        assertEq(pool.pair().fee(), fee);
+        assertEq(pool.initialDelta(), delta);
+        assertEq(pool.initialSpotPrice(), spotPrice);
+        assertEq(pool.nft(), address(testERC721));
+        assertEq(address(pool.pairFactory()), address(pairFactory));
+        assertEq(address(LSSVMPairERC20(address(pool.pair())).token()), address(testERC20));
+        assertEq(address(pool.token()), address(testERC20));
+    }
+
+    function test_createSharedPoolERC1155ETH(uint256 delta, uint256 spotPrice, uint256 fee, uint256 nftId) public {
+        delta = bound(delta, 0, 1000);
+        spotPrice = bound(spotPrice, 0, 1e20);
+        fee = bound(fee, 0, 1e17);
+
+        SharedPoolERC1155ETH pool =
+            factory.createSharedPoolERC1155ETH(testERC1155, uint128(delta), uint128(spotPrice), uint96(fee), nftId);
+        assertEq(pool.pair().delta(), delta);
+        assertEq(pool.pair().spotPrice(), spotPrice);
+        assertEq(pool.pair().fee(), fee);
+        assertEq(pool.initialDelta(), delta);
+        assertEq(pool.initialSpotPrice(), spotPrice);
+        assertEq(pool.nft(), address(testERC1155));
+        assertEq(address(pool.pairFactory()), address(pairFactory));
+        assertEq(address(pool.token()), address(0));
+        assertEq(LSSVMPairERC1155(address(pool.pair())).nftId(), nftId);
+        assertEq(pool.nftId(), nftId);
+    }
+
+    function test_createSharedPoolERC1155ERC20(uint256 delta, uint256 spotPrice, uint256 fee, uint256 nftId) public {
+        delta = bound(delta, 0, 1000);
+        spotPrice = bound(spotPrice, 0, 1e20);
+        fee = bound(fee, 0, 1e17);
+
+        SharedPoolERC1155ERC20 pool = factory.createSharedPoolERC1155ERC20(
+            testERC20, testERC1155, uint128(delta), uint128(spotPrice), uint96(fee), nftId
+        );
+        assertEq(pool.pair().delta(), delta);
+        assertEq(pool.pair().spotPrice(), spotPrice);
+        assertEq(pool.pair().fee(), fee);
+        assertEq(pool.initialDelta(), delta);
+        assertEq(pool.initialSpotPrice(), spotPrice);
+        assertEq(pool.nft(), address(testERC1155));
+        assertEq(address(pool.pairFactory()), address(pairFactory));
+        assertEq(address(LSSVMPairERC20(address(pool.pair())).token()), address(testERC20));
+        assertEq(address(pool.token()), address(testERC20));
+        assertEq(LSSVMPairERC1155(address(pool.pair())).nftId(), nftId);
+        assertEq(pool.nftId(), nftId);
+    }
+
     function test_deposit(uint256 delta, uint256 spotPrice, uint256 fee, uint256 numNfts) public {
         delta = bound(delta, 1, 1000);
         spotPrice = bound(spotPrice, 1e3, 1e20);
@@ -113,7 +174,8 @@ contract SharedPoolTest is Test {
         deal(address(this), tokenAmount);
         (uint256 amountNft, uint256 amountToken, uint256 liquidity) =
             pool.deposit{value: tokenAmount}(idList, 0, 0, address(this), block.timestamp, bytes(""));
-        assertGt(liquidity, 0, "minted 0 liquidity");
+        uint256 expectedLiquidity = (amountNft * BASE * amountToken).sqrt() - MINIMUM_LIQUIDITY;
+        assertEq(liquidity, expectedLiquidity, "minted 0 liquidity");
         assertEq(pool.balanceOf(address(this)), liquidity, "didn't mint LP tokens");
         assertEq(numNfts - testERC721.balanceOf(address(this)), amountNft, "deposited NFT amount incorrect");
         assertEq(tokenAmount - address(this).balance, amountToken, "deposited token amount incorrect");
@@ -148,6 +210,7 @@ contract SharedPoolTest is Test {
         assertEq(numNftOutput, numNfts, "NFT output incorrect");
         assertEq(pool.balanceOf(address(this)), 0, "didn't burn LP tokens");
         assertEq(testERC721.balanceOf(address(this)), numNfts, "didn't withdraw NFTs");
+        assertLeDecimal(tokenOutput, tokenAmount, 18, "token output incorrect");
     }
 
     function test_withdraw_partial(
@@ -202,6 +265,7 @@ contract SharedPoolTest is Test {
         }
 
         // burn liquidity tokens to withdraw assets
+        uint256 beforeTokenBalance = address(this).balance;
         (uint256 numNftOutput, uint256 tokenOutput) =
             pool.redeem(liquidityToWithdraw, idList, 0, 0, address(this), block.timestamp);
 
@@ -216,6 +280,41 @@ contract SharedPoolTest is Test {
         assertEq(numNftOutput, expectedNumNftOutput, "NFT output incorrect");
         assertEq(pool.balanceOf(address(this)), liquidity - liquidityToWithdraw, "didn't burn LP tokens");
         assertEq(testERC721.balanceOf(address(this)), numNftOutput, "didn't withdraw NFTs");
+
+        // verify token output
+        assertEq(address(this).balance - beforeTokenBalance, tokenOutput, "returned tokenOutput incorrect");
+    }
+
+    function test_depositThenWithdraw_noProfit(uint256 delta, uint256 spotPrice, uint256 fee, uint256 numNfts) public {
+        delta = bound(delta, 1, 1000);
+        spotPrice = bound(spotPrice, 1e3, 1e20);
+        fee = bound(fee, 0, 1e17);
+        numNfts = bound(numNfts, 1, 10);
+        uint256 tokenAmount = spotPrice * numNfts / delta;
+
+        // deploy pool
+        SharedPoolERC721ETH pool =
+            factory.createSharedPoolERC721ETH(testERC721, uint128(delta), uint128(spotPrice), uint96(fee), address(0));
+
+        // mint NFTs
+        testERC721.setApprovalForAll(address(pool), true);
+        uint256[] memory idList = _getIdList(1, numNfts);
+        for (uint256 i; i < numNfts; i++) {
+            testERC721.safeMint(address(this), idList[i]);
+        }
+
+        // deposit
+        deal(address(this), tokenAmount);
+        (uint256 amountNft, uint256 amountToken, uint256 liquidity) =
+            pool.deposit{value: tokenAmount}(idList, 0, 0, address(this), block.timestamp, bytes(""));
+
+        // withdraw
+        (uint256 numNftOutput, uint256 tokenOutput) =
+            pool.redeem(liquidity, idList, 0, 0, address(this), block.timestamp);
+
+        // verify no profit
+        assertLe(numNftOutput, amountNft, "withdrew more NFTs");
+        assertLe(tokenOutput, amountToken, "withdrew more tokens");
     }
 
     function test_sync_statusQuo(uint256 delta, uint256 spotPrice, uint256 fee, uint256 numNfts) public {
