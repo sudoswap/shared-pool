@@ -56,7 +56,9 @@ abstract contract SharedPoolERC721 is SharedPool, ERC721TokenReceiver {
             // transfer NFTs from msg.sender to pair
             ERC721 _nft = ERC721(nft());
             for (uint256 i; i < amountNft;) {
-                _nft.safeTransferFrom(msg.sender, address(_pair), nftIds[i]);
+                // we use the unsafe transferFrom() because we know that
+                // the LSSVMPair receive handler does nothing
+                _nft.transferFrom(msg.sender, address(_pair), nftIds[i]);
 
                 unchecked {
                     ++i;
