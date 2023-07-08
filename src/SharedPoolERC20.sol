@@ -12,6 +12,7 @@ abstract contract SharedPoolERC20 is SharedPool {
         uint256 tokenArgOffset;
         // solhint-disable-next-line no-inline-assembly
         assembly {
+            // returns the last 20 bytes of the immutable args blob
             tokenArgOffset := sub(shr(240, calldataload(sub(calldatasize(), 2))), 20)
         }
         return ERC20(_getArgAddress(tokenArgOffset));

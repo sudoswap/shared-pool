@@ -7,6 +7,8 @@ import {LSSVMPairFactory, LSSVMPair, ICurve} from "lssvm2/LSSVMPairFactory.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {IERC1155} from "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 
+import {LibString} from "solady/src/utils/LibString.sol";
+
 import {ERC20} from "solmate/tokens/ERC20.sol";
 import {ERC721} from "solmate/tokens/ERC721.sol";
 import {ERC1155} from "solmate/tokens/ERC1155.sol";
@@ -34,6 +36,12 @@ contract SharedPoolFactory {
     event CreateSharedPoolERC721ERC20(SharedPoolERC721ERC20 sharedPool);
     event CreateSharedPoolERC1155ETH(SharedPoolERC1155ETH sharedPool);
     event CreateSharedPoolERC1155ERC20(SharedPoolERC1155ERC20 sharedPool);
+
+    /// -----------------------------------------------------------------------
+    /// Errors
+    /// -----------------------------------------------------------------------
+
+    error SharedPoolFactory__StringTooLong();
 
     /// -----------------------------------------------------------------------
     /// Immutable parameters
@@ -87,8 +95,12 @@ contract SharedPoolFactory {
         uint128 delta,
         uint128 spotPrice,
         uint96 fee,
-        address propertyChecker
+        address propertyChecker,
+        string calldata name,
+        string calldata symbol
     ) external returns (SharedPoolERC721ETH sharedPool) {
+        if (bytes(name).length > 31 || bytes(symbol).length > 31) revert SharedPoolFactory__StringTooLong();
+
         // deploy trade pair with XYK curve
         uint256[] memory empty;
         LSSVMPair pair = pairFactory.createPairERC721ETH(
@@ -104,7 +116,9 @@ contract SharedPoolFactory {
         );
 
         // deploy shared pool
-        bytes memory data = abi.encodePacked(pair, delta, spotPrice, nft, pairFactory);
+        bytes memory data = abi.encodePacked(
+            pair, delta, spotPrice, nft, pairFactory, LibString.packOne(name), LibString.packOne(symbol)
+        );
         sharedPool = SharedPoolERC721ETH(payable(address(implementationERC721ETH).clone(data)));
         sharedPool.initialize();
 
@@ -130,8 +144,12 @@ contract SharedPoolFactory {
         uint128 delta,
         uint128 spotPrice,
         uint96 fee,
-        address propertyChecker
+        address propertyChecker,
+        string calldata name,
+        string calldata symbol
     ) external returns (SharedPoolERC721ERC20 sharedPool) {
+        if (bytes(name).length > 31 || bytes(symbol).length > 31) revert SharedPoolFactory__StringTooLong();
+
         // deploy trade pair with XYK curve
         uint256[] memory empty;
         LSSVMPair pair = pairFactory.createPairERC721ERC20(
@@ -151,7 +169,9 @@ contract SharedPoolFactory {
         );
 
         // deploy shared pool
-        bytes memory data = abi.encodePacked(pair, delta, spotPrice, nft, pairFactory, token);
+        bytes memory data = abi.encodePacked(
+            pair, delta, spotPrice, nft, pairFactory, LibString.packOne(name), LibString.packOne(symbol), token
+        );
         sharedPool = SharedPoolERC721ERC20(payable(address(implementationERC721ERC20).clone(data)));
         sharedPool.initialize();
 
@@ -170,10 +190,17 @@ contract SharedPoolFactory {
     /// @param fee The trade fee value of the pair
     /// @param nftId The nftId used by the pair
     /// @return sharedPool The created SharedPool contract
-    function createSharedPoolERC1155ETH(ERC1155 nft, uint128 delta, uint128 spotPrice, uint96 fee, uint256 nftId)
-        external
-        returns (SharedPoolERC1155ETH sharedPool)
-    {
+    function createSharedPoolERC1155ETH(
+        ERC1155 nft,
+        uint128 delta,
+        uint128 spotPrice,
+        uint96 fee,
+        uint256 nftId,
+        string calldata name,
+        string calldata symbol
+    ) external returns (SharedPoolERC1155ETH sharedPool) {
+        if (bytes(name).length > 31 || bytes(symbol).length > 31) revert SharedPoolFactory__StringTooLong();
+
         // deploy trade pair with XYK curve
         LSSVMPair pair = pairFactory.createPairERC1155ETH(
             IERC1155(address(nft)),
@@ -188,7 +215,9 @@ contract SharedPoolFactory {
         );
 
         // deploy SharedPool
-        bytes memory data = abi.encodePacked(pair, delta, spotPrice, nft, pairFactory, nftId);
+        bytes memory data = abi.encodePacked(
+            pair, delta, spotPrice, nft, pairFactory, LibString.packOne(name), LibString.packOne(symbol), nftId
+        );
         sharedPool = SharedPoolERC1155ETH(payable(address(implementationERC1155ETH).clone(data)));
         sharedPool.initialize();
 
@@ -214,8 +243,12 @@ contract SharedPoolFactory {
         uint128 delta,
         uint128 spotPrice,
         uint96 fee,
-        uint256 nftId
+        uint256 nftId,
+        string calldata name,
+        string calldata symbol
     ) external returns (SharedPoolERC1155ERC20 sharedPool) {
+        if (bytes(name).length > 31 || bytes(symbol).length > 31) revert SharedPoolFactory__StringTooLong();
+
         // deploy trade pair with XYK curve
         LSSVMPair pair = pairFactory.createPairERC1155ERC20(
             LSSVMPairFactory.CreateERC1155ERC20PairParams(
@@ -234,7 +267,9 @@ contract SharedPoolFactory {
         );
 
         // deploy SharedPool
-        bytes memory data = abi.encodePacked(pair, delta, spotPrice, nft, pairFactory, nftId, token);
+        bytes memory data = abi.encodePacked(
+            pair, delta, spotPrice, nft, pairFactory, LibString.packOne(name), LibString.packOne(symbol), nftId, token
+        );
         sharedPool = SharedPoolERC1155ERC20(payable(address(implementationERC1155ERC20).clone(data)));
         sharedPool.initialize();
 

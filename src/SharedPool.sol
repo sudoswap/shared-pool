@@ -6,18 +6,21 @@ import {Clone} from "@clones/Clone.sol";
 import {LSSVMPair} from "lssvm2/LSSVMPair.sol";
 import {LSSVMPairFactory} from "lssvm2/LSSVMPairFactory.sol";
 
+import {LibString} from "solady/src/utils/LibString.sol";
+
 import {ERC20} from "solmate/tokens/ERC20.sol";
 import {SafeCastLib} from "solmate/utils/SafeCastLib.sol";
 import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
 
 import "./lib/Math.sol";
 import "./lib/ReentrancyGuard.sol";
+import {ERC20 as BaseERC20} from "./lib/ERC20.sol";
 
 /// @title SharedPool
 /// @author zefram.eth
 /// @notice Shared Sudoswap pair using the XYK curve. Represents liquidity shares using an ERC20 token.
 /// @dev Performs fractional swap during redemption to ensure only whole NFTs are withdrawn.
-abstract contract SharedPool is Clone, ERC20("Sudoswap Shared Pool", "SUDO-POOL", 18), ReentrancyGuard {
+abstract contract SharedPool is Clone, BaseERC20, ReentrancyGuard {
     /// -----------------------------------------------------------------------
     /// Library usage
     /// -----------------------------------------------------------------------
@@ -95,6 +98,14 @@ abstract contract SharedPool is Clone, ERC20("Sudoswap Shared Pool", "SUDO-POOL"
     /// @notice The Sudoswap LSSVMPairFactory contract
     function pairFactory() public pure returns (LSSVMPairFactory) {
         return LSSVMPairFactory(payable(_getArgAddress(0x48)));
+    }
+
+    function name() public pure override returns (string memory) {
+        return LibString.unpackOne(bytes32(_getArgUint256(0x5C)));
+    }
+
+    function symbol() public pure override returns (string memory) {
+        return LibString.unpackOne(bytes32(_getArgUint256(0x7C)));
     }
 
     /// @notice The token used by the Sudo pair. Returns 0 for ETH pools.

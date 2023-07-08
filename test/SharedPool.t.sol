@@ -76,13 +76,21 @@ contract SharedPoolTest is Test {
         testERC1155 = new TestERC1155();
     }
 
-    function test_createSharedPoolERC721ETH(uint256 delta, uint256 spotPrice, uint256 fee) public {
+    function test_createSharedPoolERC721ETH(
+        uint256 delta,
+        uint256 spotPrice,
+        uint256 fee,
+        string memory name,
+        string memory symbol
+    ) public {
+        vm.assume(bytes(name).length <= 31 && bytes(symbol).length <= 31);
         delta = bound(delta, 0, 1000);
         spotPrice = bound(spotPrice, 0, 1e20);
         fee = bound(fee, 0, 1e17);
 
-        SharedPoolERC721ETH pool =
-            factory.createSharedPoolERC721ETH(testERC721, uint128(delta), uint128(spotPrice), uint96(fee), address(0));
+        SharedPoolERC721ETH pool = factory.createSharedPoolERC721ETH(
+            testERC721, uint128(delta), uint128(spotPrice), uint96(fee), address(0), name, symbol
+        );
         assertEq(pool.pair().delta(), delta);
         assertEq(pool.pair().spotPrice(), spotPrice);
         assertEq(pool.pair().fee(), fee);
@@ -91,15 +99,24 @@ contract SharedPoolTest is Test {
         assertEq(pool.nft(), address(testERC721));
         assertEq(address(pool.pairFactory()), address(pairFactory));
         assertEq(address(pool.token()), address(0));
+        assertEq(pool.name(), name);
+        assertEq(pool.symbol(), symbol);
     }
 
-    function test_createSharedPoolERC721ERC20(uint256 delta, uint256 spotPrice, uint256 fee) public {
+    function test_createSharedPoolERC721ERC20(
+        uint256 delta,
+        uint256 spotPrice,
+        uint256 fee,
+        string memory name,
+        string memory symbol
+    ) public {
+        vm.assume(bytes(name).length <= 31 && bytes(symbol).length <= 31);
         delta = bound(delta, 0, 1000);
         spotPrice = bound(spotPrice, 0, 1e20);
         fee = bound(fee, 0, 1e17);
 
         SharedPoolERC721ERC20 pool = factory.createSharedPoolERC721ERC20(
-            testERC20, testERC721, uint128(delta), uint128(spotPrice), uint96(fee), address(0)
+            testERC20, testERC721, uint128(delta), uint128(spotPrice), uint96(fee), address(0), name, symbol
         );
         assertEq(pool.pair().delta(), delta);
         assertEq(pool.pair().spotPrice(), spotPrice);
@@ -110,15 +127,26 @@ contract SharedPoolTest is Test {
         assertEq(address(pool.pairFactory()), address(pairFactory));
         assertEq(address(LSSVMPairERC20(address(pool.pair())).token()), address(testERC20));
         assertEq(address(pool.token()), address(testERC20));
+        assertEq(pool.name(), name);
+        assertEq(pool.symbol(), symbol);
     }
 
-    function test_createSharedPoolERC1155ETH(uint256 delta, uint256 spotPrice, uint256 fee, uint256 nftId) public {
+    function test_createSharedPoolERC1155ETH(
+        uint256 delta,
+        uint256 spotPrice,
+        uint256 fee,
+        uint256 nftId,
+        string memory name,
+        string memory symbol
+    ) public {
+        vm.assume(bytes(name).length <= 31 && bytes(symbol).length <= 31);
         delta = bound(delta, 0, 1000);
         spotPrice = bound(spotPrice, 0, 1e20);
         fee = bound(fee, 0, 1e17);
 
-        SharedPoolERC1155ETH pool =
-            factory.createSharedPoolERC1155ETH(testERC1155, uint128(delta), uint128(spotPrice), uint96(fee), nftId);
+        SharedPoolERC1155ETH pool = factory.createSharedPoolERC1155ETH(
+            testERC1155, uint128(delta), uint128(spotPrice), uint96(fee), nftId, name, symbol
+        );
         assertEq(pool.pair().delta(), delta);
         assertEq(pool.pair().spotPrice(), spotPrice);
         assertEq(pool.pair().fee(), fee);
@@ -129,15 +157,25 @@ contract SharedPoolTest is Test {
         assertEq(address(pool.token()), address(0));
         assertEq(LSSVMPairERC1155(address(pool.pair())).nftId(), nftId);
         assertEq(pool.nftId(), nftId);
+        assertEq(pool.name(), name);
+        assertEq(pool.symbol(), symbol);
     }
 
-    function test_createSharedPoolERC1155ERC20(uint256 delta, uint256 spotPrice, uint256 fee, uint256 nftId) public {
+    function test_createSharedPoolERC1155ERC20(
+        uint256 delta,
+        uint256 spotPrice,
+        uint256 fee,
+        uint256 nftId,
+        string memory name,
+        string memory symbol
+    ) public {
+        vm.assume(bytes(name).length <= 31 && bytes(symbol).length <= 31);
         delta = bound(delta, 0, 1000);
         spotPrice = bound(spotPrice, 0, 1e20);
         fee = bound(fee, 0, 1e17);
 
         SharedPoolERC1155ERC20 pool = factory.createSharedPoolERC1155ERC20(
-            testERC20, testERC1155, uint128(delta), uint128(spotPrice), uint96(fee), nftId
+            testERC20, testERC1155, uint128(delta), uint128(spotPrice), uint96(fee), nftId, name, symbol
         );
         assertEq(pool.pair().delta(), delta);
         assertEq(pool.pair().spotPrice(), spotPrice);
@@ -150,6 +188,8 @@ contract SharedPoolTest is Test {
         assertEq(address(pool.token()), address(testERC20));
         assertEq(LSSVMPairERC1155(address(pool.pair())).nftId(), nftId);
         assertEq(pool.nftId(), nftId);
+        assertEq(pool.name(), name);
+        assertEq(pool.symbol(), symbol);
     }
 
     function test_deposit(uint256 delta, uint256 spotPrice, uint256 fee, uint256 numNfts) public {
@@ -160,8 +200,9 @@ contract SharedPoolTest is Test {
         uint256 tokenAmount = spotPrice * numNfts / delta;
 
         // deploy pool
-        SharedPoolERC721ETH pool =
-            factory.createSharedPoolERC721ETH(testERC721, uint128(delta), uint128(spotPrice), uint96(fee), address(0));
+        SharedPoolERC721ETH pool = factory.createSharedPoolERC721ETH(
+            testERC721, uint128(delta), uint128(spotPrice), uint96(fee), address(0), "Shared Pool", "SUDO-POOL"
+        );
 
         // mint NFTs
         testERC721.setApprovalForAll(address(pool), true);
@@ -189,8 +230,9 @@ contract SharedPoolTest is Test {
         uint256 tokenAmount = spotPrice * numNfts / delta;
 
         // deploy pool
-        SharedPoolERC721ETH pool =
-            factory.createSharedPoolERC721ETH(testERC721, uint128(delta), uint128(spotPrice), uint96(fee), address(0));
+        SharedPoolERC721ETH pool = factory.createSharedPoolERC721ETH(
+            testERC721, uint128(delta), uint128(spotPrice), uint96(fee), address(0), "Shared Pool", "SUDO-POOL"
+        );
 
         // mint NFTs
         testERC721.setApprovalForAll(address(pool), true);
@@ -227,8 +269,9 @@ contract SharedPoolTest is Test {
         uint256 tokenAmount = spotPrice * numNfts / delta;
 
         // deploy pool
-        SharedPoolERC721ETH pool =
-            factory.createSharedPoolERC721ETH(testERC721, uint128(delta), uint128(spotPrice), uint96(fee), address(0));
+        SharedPoolERC721ETH pool = factory.createSharedPoolERC721ETH(
+            testERC721, uint128(delta), uint128(spotPrice), uint96(fee), address(0), "Shared Pool", "SUDO-POOL"
+        );
 
         // mint NFTs
         testERC721.setApprovalForAll(address(pool), true);
@@ -293,8 +336,9 @@ contract SharedPoolTest is Test {
         uint256 tokenAmount = spotPrice * numNfts / delta;
 
         // deploy pool
-        SharedPoolERC721ETH pool =
-            factory.createSharedPoolERC721ETH(testERC721, uint128(delta), uint128(spotPrice), uint96(fee), address(0));
+        SharedPoolERC721ETH pool = factory.createSharedPoolERC721ETH(
+            testERC721, uint128(delta), uint128(spotPrice), uint96(fee), address(0), "Shared Pool", "SUDO-POOL"
+        );
 
         // mint NFTs
         testERC721.setApprovalForAll(address(pool), true);
@@ -325,8 +369,9 @@ contract SharedPoolTest is Test {
         uint256 tokenAmount = spotPrice * numNfts / delta;
 
         // deploy pool
-        SharedPoolERC721ETH pool =
-            factory.createSharedPoolERC721ETH(testERC721, uint128(delta), uint128(spotPrice), uint96(fee), address(0));
+        SharedPoolERC721ETH pool = factory.createSharedPoolERC721ETH(
+            testERC721, uint128(delta), uint128(spotPrice), uint96(fee), address(0), "Shared Pool", "SUDO-POOL"
+        );
 
         // mint NFTs
         testERC721.setApprovalForAll(address(pool), true);
@@ -371,8 +416,9 @@ contract SharedPoolTest is Test {
         uint256 tokenAmount = spotPrice * numNfts / delta;
 
         // deploy pool
-        SharedPoolERC721ETH pool =
-            factory.createSharedPoolERC721ETH(testERC721, uint128(delta), uint128(spotPrice), uint96(fee), address(0));
+        SharedPoolERC721ETH pool = factory.createSharedPoolERC721ETH(
+            testERC721, uint128(delta), uint128(spotPrice), uint96(fee), address(0), "Shared Pool", "SUDO-POOL"
+        );
 
         // mint NFTs
         testERC721.setApprovalForAll(address(pool), true);

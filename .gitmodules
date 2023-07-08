@@ -19,3 +19,6 @@
 [submodule "lib/lssvm2"]
 	path = lib/lssvm2
 	url = https://github.com/sudoswap/lssvm2
+[submodule "lib/solady"]
+	path = lib/solady
+	url = https://github.com/vectorized/solady

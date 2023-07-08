@@ -13,7 +13,7 @@ abstract contract SharedPoolERC1155 is SharedPool, ERC1155TokenReceiver {
     /// -----------------------------------------------------------------------
 
     function nftId() public pure returns (uint256) {
-        return _getArgUint256(0x5C);
+        return _getArgUint256(0x9C);
     }
 
     /// -----------------------------------------------------------------------
