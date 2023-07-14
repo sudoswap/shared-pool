@@ -15,6 +15,7 @@ import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
 import "./lib/Math.sol";
 import "./lib/ReentrancyGuard.sol";
 import {ERC20 as BaseERC20} from "./lib/ERC20.sol";
+import {SplitSettings} from "./settings/SplitSettings.sol";
 
 /// @title SharedPool
 /// @author zefram.eth
@@ -67,6 +68,12 @@ abstract contract SharedPool is Clone, BaseERC20, ReentrancyGuard {
         // no need to check if the contract is already initialized
         // since __ReentrancyGuard_init() already does that
         __ReentrancyGuard_init();
+
+        // if settings is non-zero, transfer ownership of pair to settings
+        address settingsAddress = settings();
+        if (settingsAddress != address(0)) {
+            pair().transferOwnership(settingsAddress, bytes(""));
+        }
     }
 
     /// -----------------------------------------------------------------------
@@ -100,12 +107,16 @@ abstract contract SharedPool is Clone, BaseERC20, ReentrancyGuard {
         return LSSVMPairFactory(payable(_getArgAddress(0x48)));
     }
 
+    function settings() public pure returns (address) {
+        return _getArgAddress(0x5C);
+    }
+
     function name() public pure override returns (string memory) {
-        return LibString.unpackOne(bytes32(_getArgUint256(0x5C)));
+        return LibString.unpackOne(bytes32(_getArgUint256(0x70)));
     }
 
     function symbol() public pure override returns (string memory) {
-        return LibString.unpackOne(bytes32(_getArgUint256(0x7C)));
+        return LibString.unpackOne(bytes32(_getArgUint256(0x90)));
     }
 
     /// @notice The token used by the Sudo pair. Returns 0 for ETH pools.
@@ -124,8 +135,9 @@ abstract contract SharedPool is Clone, BaseERC20, ReentrancyGuard {
         uint256 tokenReserve = _getTokenReserve(token(), _pair);
         uint256 _initialDelta = initialDelta();
         uint256 _initialSpotPrice = initialSpotPrice();
-        _pair.changeDelta((_initialDelta + nftReserve).safeCastTo128());
-        _pair.changeSpotPrice((_initialSpotPrice + tokenReserve).safeCastTo128());
+        _changeSpotPriceAndDelta(
+            _pair, (_initialSpotPrice + tokenReserve).safeCastTo128(), (_initialDelta + nftReserve).safeCastTo128()
+        );
     }
 
     /// @notice Returns the number of NFTs in the Sudo pair.
@@ -209,8 +221,9 @@ abstract contract SharedPool is Clone, BaseERC20, ReentrancyGuard {
         /// -----------------------------------------------------------------------
 
         // update pair params
-        _pair.changeDelta((virtualNftReserve + amountNft).safeCastTo128());
-        _pair.changeSpotPrice((virtualTokenReserve + amountToken).safeCastTo128());
+        _changeSpotPriceAndDelta(
+            _pair, (virtualTokenReserve + amountToken).safeCastTo128(), (virtualNftReserve + amountNft).safeCastTo128()
+        );
     }
 
     function _redeem(
@@ -330,8 +343,21 @@ abstract contract SharedPool is Clone, BaseERC20, ReentrancyGuard {
         /// -----------------------------------------------------------------------
 
         // update pair params
-        _pair.changeDelta((virtualNftReserve - numNftOutput).safeCastTo128());
-        _pair.changeSpotPrice((virtualTokenReserve - tokenOutput).safeCastTo128());
+        _changeSpotPriceAndDelta(
+            _pair,
+            (virtualTokenReserve - tokenOutput).safeCastTo128(),
+            (virtualNftReserve - numNftOutput).safeCastTo128()
+        );
+    }
+
+    function _changeSpotPriceAndDelta(LSSVMPair _pair, uint128 spotPrice, uint128 delta) internal {
+        address settingsAddress = settings();
+        if (settingsAddress != address(0)) {
+            SplitSettings(settingsAddress).changeSpotPriceAndDelta(address(_pair), spotPrice, delta);
+        } else {
+            _pair.changeSpotPrice(spotPrice);
+            _pair.changeDelta(delta);
+        }
     }
 
     /// @notice Reads an immutable arg with type uint128
@@ -355,5 +381,7 @@ abstract contract SharedPool is Clone, BaseERC20, ReentrancyGuard {
 
     function _pushTokens(ERC20 _token, address to, uint256 amount) internal virtual;
 
-    function _withdrawTokensFromPair(ERC20 _token, LSSVMPair _pair, uint256 amount) internal virtual;
+    function _withdrawTokensFromPair(ERC20 _token, LSSVMPair _pair, uint256 amount, address recipient)
+        internal
+        virtual;
 }

@@ -96,6 +96,7 @@ contract SharedPoolFactory {
         uint128 spotPrice,
         uint96 fee,
         address propertyChecker,
+        address settings,
         string calldata name,
         string calldata symbol
     ) external returns (SharedPoolERC721ETH sharedPool) {
@@ -117,7 +118,7 @@ contract SharedPoolFactory {
 
         // deploy shared pool
         bytes memory data = abi.encodePacked(
-            pair, delta, spotPrice, nft, pairFactory, LibString.packOne(name), LibString.packOne(symbol)
+            pair, delta, spotPrice, nft, pairFactory, settings, LibString.packOne(name), LibString.packOne(symbol)
         );
         sharedPool = SharedPoolERC721ETH(payable(address(implementationERC721ETH).clone(data)));
         sharedPool.initialize();
@@ -145,6 +146,7 @@ contract SharedPoolFactory {
         uint128 spotPrice,
         uint96 fee,
         address propertyChecker,
+        address settings,
         string calldata name,
         string calldata symbol
     ) external returns (SharedPoolERC721ERC20 sharedPool) {
@@ -170,7 +172,15 @@ contract SharedPoolFactory {
 
         // deploy shared pool
         bytes memory data = abi.encodePacked(
-            pair, delta, spotPrice, nft, pairFactory, LibString.packOne(name), LibString.packOne(symbol), token
+            pair,
+            delta,
+            spotPrice,
+            nft,
+            pairFactory,
+            settings,
+            LibString.packOne(name),
+            LibString.packOne(symbol),
+            token
         );
         sharedPool = SharedPoolERC721ERC20(payable(address(implementationERC721ERC20).clone(data)));
         sharedPool.initialize();
@@ -196,6 +206,7 @@ contract SharedPoolFactory {
         uint128 spotPrice,
         uint96 fee,
         uint256 nftId,
+        address settings,
         string calldata name,
         string calldata symbol
     ) external returns (SharedPoolERC1155ETH sharedPool) {
@@ -216,7 +227,15 @@ contract SharedPoolFactory {
 
         // deploy SharedPool
         bytes memory data = abi.encodePacked(
-            pair, delta, spotPrice, nft, pairFactory, LibString.packOne(name), LibString.packOne(symbol), nftId
+            pair,
+            delta,
+            spotPrice,
+            nft,
+            pairFactory,
+            settings,
+            LibString.packOne(name),
+            LibString.packOne(symbol),
+            nftId
         );
         sharedPool = SharedPoolERC1155ETH(payable(address(implementationERC1155ETH).clone(data)));
         sharedPool.initialize();
@@ -244,6 +263,7 @@ contract SharedPoolFactory {
         uint128 spotPrice,
         uint96 fee,
         uint256 nftId,
+        address settings,
         string calldata name,
         string calldata symbol
     ) external returns (SharedPoolERC1155ERC20 sharedPool) {
@@ -268,7 +288,16 @@ contract SharedPoolFactory {
 
         // deploy SharedPool
         bytes memory data = abi.encodePacked(
-            pair, delta, spotPrice, nft, pairFactory, LibString.packOne(name), LibString.packOne(symbol), nftId, token
+            pair,
+            delta,
+            spotPrice,
+            nft,
+            pairFactory,
+            settings,
+            LibString.packOne(name),
+            LibString.packOne(symbol),
+            nftId,
+            token
         );
         sharedPool = SharedPoolERC1155ERC20(payable(address(implementationERC1155ERC20).clone(data)));
         sharedPool.initialize();

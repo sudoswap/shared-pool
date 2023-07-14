@@ -32,9 +32,18 @@ abstract contract SharedPoolERC20 is SharedPool {
         _token.safeTransfer(to, amount);
     }
 
-    function _withdrawTokensFromPair(ERC20 _token, LSSVMPair _pair, uint256 amount) internal override {
+    function _withdrawTokensFromPair(ERC20 _token, LSSVMPair _pair, uint256 amount, address recipient)
+        internal
+        override
+    {
         if (amount == 0) return;
-        _pair.withdrawERC20(_token, amount);
+        address settingsAddress = settings();
+        if (settingsAddress != address(0)) {
+            SplitSettings(settingsAddress).withdrawERC20(address(_pair), _token, amount, recipient);
+        } else {
+            _pair.withdrawERC20(_token, amount);
+            _token.safeTransfer(recipient, amount);
+        }
     }
 
     function _getTokenReserve(ERC20 _token, LSSVMPair _pair) internal view override returns (uint256 tokenReserve) {

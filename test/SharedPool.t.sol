@@ -89,7 +89,7 @@ contract SharedPoolTest is Test {
         fee = bound(fee, 0, 1e17);
 
         SharedPoolERC721ETH pool = factory.createSharedPoolERC721ETH(
-            testERC721, uint128(delta), uint128(spotPrice), uint96(fee), address(0), name, symbol
+            testERC721, uint128(delta), uint128(spotPrice), uint96(fee), address(0), address(0), name, symbol
         );
         assertEq(pool.pair().delta(), delta);
         assertEq(pool.pair().spotPrice(), spotPrice);
@@ -116,7 +116,7 @@ contract SharedPoolTest is Test {
         fee = bound(fee, 0, 1e17);
 
         SharedPoolERC721ERC20 pool = factory.createSharedPoolERC721ERC20(
-            testERC20, testERC721, uint128(delta), uint128(spotPrice), uint96(fee), address(0), name, symbol
+            testERC20, testERC721, uint128(delta), uint128(spotPrice), uint96(fee), address(0), address(0), name, symbol
         );
         assertEq(pool.pair().delta(), delta);
         assertEq(pool.pair().spotPrice(), spotPrice);
@@ -145,7 +145,7 @@ contract SharedPoolTest is Test {
         fee = bound(fee, 0, 1e17);
 
         SharedPoolERC1155ETH pool = factory.createSharedPoolERC1155ETH(
-            testERC1155, uint128(delta), uint128(spotPrice), uint96(fee), nftId, name, symbol
+            testERC1155, uint128(delta), uint128(spotPrice), uint96(fee), nftId, address(0), name, symbol
         );
         assertEq(pool.pair().delta(), delta);
         assertEq(pool.pair().spotPrice(), spotPrice);
@@ -175,7 +175,7 @@ contract SharedPoolTest is Test {
         fee = bound(fee, 0, 1e17);
 
         SharedPoolERC1155ERC20 pool = factory.createSharedPoolERC1155ERC20(
-            testERC20, testERC1155, uint128(delta), uint128(spotPrice), uint96(fee), nftId, name, symbol
+            testERC20, testERC1155, uint128(delta), uint128(spotPrice), uint96(fee), nftId, address(0), name, symbol
         );
         assertEq(pool.pair().delta(), delta);
         assertEq(pool.pair().spotPrice(), spotPrice);
@@ -201,7 +201,14 @@ contract SharedPoolTest is Test {
 
         // deploy pool
         SharedPoolERC721ETH pool = factory.createSharedPoolERC721ETH(
-            testERC721, uint128(delta), uint128(spotPrice), uint96(fee), address(0), "Shared Pool", "SUDO-POOL"
+            testERC721,
+            uint128(delta),
+            uint128(spotPrice),
+            uint96(fee),
+            address(0),
+            address(0),
+            "Shared Pool",
+            "SUDO-POOL"
         );
 
         // mint NFTs
@@ -231,7 +238,14 @@ contract SharedPoolTest is Test {
 
         // deploy pool
         SharedPoolERC721ETH pool = factory.createSharedPoolERC721ETH(
-            testERC721, uint128(delta), uint128(spotPrice), uint96(fee), address(0), "Shared Pool", "SUDO-POOL"
+            testERC721,
+            uint128(delta),
+            uint128(spotPrice),
+            uint96(fee),
+            address(0),
+            address(0),
+            "Shared Pool",
+            "SUDO-POOL"
         );
 
         // mint NFTs
@@ -270,7 +284,14 @@ contract SharedPoolTest is Test {
 
         // deploy pool
         SharedPoolERC721ETH pool = factory.createSharedPoolERC721ETH(
-            testERC721, uint128(delta), uint128(spotPrice), uint96(fee), address(0), "Shared Pool", "SUDO-POOL"
+            testERC721,
+            uint128(delta),
+            uint128(spotPrice),
+            uint96(fee),
+            address(0),
+            address(0),
+            "Shared Pool",
+            "SUDO-POOL"
         );
 
         // mint NFTs
@@ -337,7 +358,14 @@ contract SharedPoolTest is Test {
 
         // deploy pool
         SharedPoolERC721ETH pool = factory.createSharedPoolERC721ETH(
-            testERC721, uint128(delta), uint128(spotPrice), uint96(fee), address(0), "Shared Pool", "SUDO-POOL"
+            testERC721,
+            uint128(delta),
+            uint128(spotPrice),
+            uint96(fee),
+            address(0),
+            address(0),
+            "Shared Pool",
+            "SUDO-POOL"
         );
 
         // mint NFTs
@@ -370,7 +398,14 @@ contract SharedPoolTest is Test {
 
         // deploy pool
         SharedPoolERC721ETH pool = factory.createSharedPoolERC721ETH(
-            testERC721, uint128(delta), uint128(spotPrice), uint96(fee), address(0), "Shared Pool", "SUDO-POOL"
+            testERC721,
+            uint128(delta),
+            uint128(spotPrice),
+            uint96(fee),
+            address(0),
+            address(0),
+            "Shared Pool",
+            "SUDO-POOL"
         );
 
         // mint NFTs
@@ -417,7 +452,14 @@ contract SharedPoolTest is Test {
 
         // deploy pool
         SharedPoolERC721ETH pool = factory.createSharedPoolERC721ETH(
-            testERC721, uint128(delta), uint128(spotPrice), uint96(fee), address(0), "Shared Pool", "SUDO-POOL"
+            testERC721,
+            uint128(delta),
+            uint128(spotPrice),
+            uint96(fee),
+            address(0),
+            address(0),
+            "Shared Pool",
+            "SUDO-POOL"
         );
 
         // mint NFTs

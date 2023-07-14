@@ -103,41 +103,64 @@ abstract contract SharedPoolERC721 is SharedPool, ERC721TokenReceiver {
         // revert if nftIds is too short
         if (numNftOutput > nftIds.length) revert SharedPoolERC721__NftIdsTooShort();
 
-        // withdraw NFTs from pair
         address _nft = nft();
         // solhint-disable-next-line no-inline-assembly
         assembly {
             mstore(nftIds, numNftOutput) // update length of array
         }
-        _pair.withdrawERC721(IERC721(_nft), nftIds);
 
-        // withdraw tokens from pair
         ERC20 _token = token();
-        _withdrawTokensFromPair(_token, _pair, tokenOutput + royaltyAmount + protocolFeeAmount);
+        address settingsAddress = settings();
+        if (settingsAddress == address(0)) {
+            // withdraw tokens from pair
+            _withdrawTokensFromPair(_token, _pair, tokenOutput + royaltyAmount + protocolFeeAmount, address(this));
 
-        // transfer NFTs to recipient
-        for (uint256 i; i < numNftOutput;) {
-            ERC721(_nft).safeTransferFrom(address(this), recipient, nftIds[i]);
+            // transfer tokens to recipient
+            _pushTokens(_token, recipient, tokenOutput);
 
-            unchecked {
-                ++i;
+            // transfer protocol fees to factory
+            _pushTokens(_token, address(pairFactory()), protocolFeeAmount);
+
+            // transfer royalties
+            if (royaltyAmount != 0) {
+                for (uint256 i; i < royaltyRecipients.length;) {
+                    _pushTokens(_token, royaltyRecipients[i], royaltyAmounts[i]);
+                    unchecked {
+                        ++i;
+                    }
+                }
             }
-        }
 
-        // transfer tokens to recipient
-        _pushTokens(_token, recipient, tokenOutput);
+            // withdraw NFTs from pair
+            _pair.withdrawERC721(IERC721(_nft), nftIds);
 
-        // transfer protocol fees to factory
-        _pushTokens(_token, address(pairFactory()), protocolFeeAmount);
+            // transfer NFTs to recipient
+            for (uint256 i; i < numNftOutput;) {
+                ERC721(_nft).safeTransferFrom(address(this), recipient, nftIds[i]);
 
-        // transfer royalties
-        if (royaltyAmount != 0) {
-            for (uint256 i; i < royaltyRecipients.length;) {
-                _pushTokens(_token, royaltyRecipients[i], royaltyAmounts[i]);
                 unchecked {
                     ++i;
                 }
             }
+        } else {
+            // withdraw tokens to recipient
+            _withdrawTokensFromPair(_token, _pair, tokenOutput, recipient);
+
+            // withdraw protocol fees to factory
+            _withdrawTokensFromPair(_token, _pair, protocolFeeAmount, address(pairFactory()));
+
+            // withdraw royalties
+            if (royaltyAmount != 0) {
+                for (uint256 i; i < royaltyRecipients.length;) {
+                    _withdrawTokensFromPair(_token, _pair, royaltyAmounts[i], royaltyRecipients[i]);
+                    unchecked {
+                        ++i;
+                    }
+                }
+            }
+
+            // withdraw NFTs to recipient
+            SplitSettings(settingsAddress).withdrawERC721(address(_pair), IERC721(_nft), nftIds, recipient);
         }
     }
 

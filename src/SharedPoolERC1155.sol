@@ -13,7 +13,7 @@ abstract contract SharedPoolERC1155 is SharedPool, ERC1155TokenReceiver {
     /// -----------------------------------------------------------------------
 
     function nftId() public pure returns (uint256) {
-        return _getArgUint256(0x9C);
+        return _getArgUint256(0xB0);
     }
 
     /// -----------------------------------------------------------------------
@@ -89,37 +89,57 @@ abstract contract SharedPoolERC1155 is SharedPool, ERC1155TokenReceiver {
         /// Effects
         /// -----------------------------------------------------------------------
 
-        // withdraw NFTs from pair
         address _nft = nft();
-        {
-            uint256[] memory ids = new uint256[](1);
-            ids[0] = _nftId;
-            uint256[] memory amounts = new uint256[](1);
-            amounts[0] = numNftOutput;
-            _pair.withdrawERC1155(IERC1155(_nft), ids, amounts);
-        }
-
-        // withdraw tokens from pair
+        uint256[] memory ids = new uint256[](1);
+        ids[0] = _nftId;
+        uint256[] memory amounts = new uint256[](1);
+        amounts[0] = numNftOutput;
         ERC20 _token = token();
-        _withdrawTokensFromPair(_token, _pair, tokenOutput + royaltyAmount + protocolFeeAmount);
+        address settingsAddress = settings();
+        if (settingsAddress == address(0)) {
+            // withdraw tokens from pair
+            _withdrawTokensFromPair(_token, _pair, tokenOutput + royaltyAmount + protocolFeeAmount, address(this));
 
-        // transfer NFTs to recipient
-        ERC1155(nft()).safeTransferFrom(address(this), recipient, _nftId, numNftOutput, "");
+            // transfer tokens to recipient
+            _pushTokens(_token, recipient, tokenOutput);
 
-        // transfer tokens to recipient
-        _pushTokens(_token, recipient, tokenOutput);
+            // transfer protocol fees to factory
+            _pushTokens(_token, address(pairFactory()), protocolFeeAmount);
 
-        // transfer protocol fees to factory
-        _pushTokens(_token, address(pairFactory()), protocolFeeAmount);
-
-        // transfer royalties
-        if (royaltyAmount != 0) {
-            for (uint256 i; i < royaltyRecipients.length;) {
-                _pushTokens(_token, royaltyRecipients[i], royaltyAmounts[i]);
-                unchecked {
-                    ++i;
+            // transfer royalties
+            if (royaltyAmount != 0) {
+                for (uint256 i; i < royaltyRecipients.length;) {
+                    _pushTokens(_token, royaltyRecipients[i], royaltyAmounts[i]);
+                    unchecked {
+                        ++i;
+                    }
                 }
             }
+
+            // withdraw NFTs from pair
+            _pair.withdrawERC1155(IERC1155(_nft), ids, amounts);
+
+            // transfer NFTs to recipient
+            ERC1155(_nft).safeTransferFrom(address(this), recipient, _nftId, numNftOutput, "");
+        } else {
+            // withdraw tokens to recipient
+            _withdrawTokensFromPair(_token, _pair, tokenOutput, recipient);
+
+            // withdraw protocol fees to factory
+            _withdrawTokensFromPair(_token, _pair, protocolFeeAmount, address(pairFactory()));
+
+            // withdraw royalties
+            if (royaltyAmount != 0) {
+                for (uint256 i; i < royaltyRecipients.length;) {
+                    _withdrawTokensFromPair(_token, _pair, royaltyAmounts[i], royaltyRecipients[i]);
+                    unchecked {
+                        ++i;
+                    }
+                }
+            }
+
+            // withdraw NFTs to recipient
+            SplitSettings(settingsAddress).withdrawERC1155(address(_pair), IERC1155(_nft), ids, amounts, recipient);
         }
     }
 
