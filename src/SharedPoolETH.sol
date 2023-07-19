@@ -36,7 +36,7 @@ abstract contract SharedPoolETH is SharedPool {
 
     function _withdrawTokensFromPair(ERC20, LSSVMPair _pair, uint256 amount, address recipient) internal override {
         if (amount == 0) return;
-        address settingsAddress = settings();
+        address payable settingsAddress = settings();
         if (settingsAddress != address(0)) {
             SplitSettings(settingsAddress).withdrawETH(address(_pair), amount, recipient);
         } else {

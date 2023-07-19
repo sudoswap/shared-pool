@@ -37,7 +37,7 @@ abstract contract SharedPoolERC20 is SharedPool {
         override
     {
         if (amount == 0) return;
-        address settingsAddress = settings();
+        address payable settingsAddress = settings();
         if (settingsAddress != address(0)) {
             SplitSettings(settingsAddress).withdrawERC20(address(_pair), _token, amount, recipient);
         } else {

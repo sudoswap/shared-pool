@@ -38,6 +38,7 @@ contract SharedPoolTest is Test {
     uint256 constant HALF_BASE = 5e17;
     address constant ROYALTY_RECEIVER = address(420);
     uint96 constant ROYALTY_BPS = 30;
+    uint256 constant BPS_BASE = 10_000;
 
     SharedPoolFactory factory;
     LSSVMPairFactory pairFactory;
@@ -520,9 +521,8 @@ contract SharedPoolTest is Test {
         delta = bound(delta, 1, 1000);
         spotPrice = bound(spotPrice, 1e3, 1e20);
         fee = bound(fee, 0, 0.2e18);
-        uint256 base = 10_000;
-        feeSplitBps = bound(feeSplitBps, 1, base);
-        royaltyBps = bound(royaltyBps, 1, base / 10);
+        feeSplitBps = bound(feeSplitBps, 1, BPS_BASE);
+        royaltyBps = bound(royaltyBps, 1, BPS_BASE / 10);
         address payable feeRecipient = payable(makeAddr("feeRecipient"));
         address owner = makeAddr("owner");
         testERC721.setOwner(owner);
@@ -580,15 +580,77 @@ contract SharedPoolTest is Test {
 
         // check royalty and trade fee split
         uint256 inputAmountMinusFees = inputAmount - royaltyAmount - tradeFee - protocolFee;
-        assertEq(royaltyAmount, inputAmountMinusFees * royaltyBps / base, "royalty incorrect");
+        assertEq(royaltyAmount, inputAmountMinusFees * royaltyBps / BPS_BASE, "royalty incorrect");
         assertEq(
             feeRecipient.balance - beforeFeeRecipientBalance,
-            2 * tradeFee * feeSplitBps / base,
+            2 * tradeFee * feeSplitBps / BPS_BASE,
             "split trade fee incorrect"
         );
         assertEq(
             ROYALTY_RECEIVER.balance - beforeRoyaltyReceiverBalance, royaltyAmount, "received royalty amount incorrect"
         );
+    }
+
+    function test_settings_withdraw_all(
+        uint256 delta,
+        uint256 spotPrice,
+        uint256 fee,
+        uint256 numNfts,
+        uint256 feeSplitBps,
+        uint256 royaltyBps
+    ) public {
+        delta = bound(delta, 1, 1000);
+        spotPrice = bound(spotPrice, 1e3, 1e20);
+        fee = bound(fee, 0, 0.2e18);
+        numNfts = bound(numNfts, 1, 10);
+        uint256 tokenAmount = spotPrice * numNfts / delta;
+        feeSplitBps = bound(feeSplitBps, 1, BPS_BASE);
+        royaltyBps = bound(royaltyBps, 1, BPS_BASE / 10);
+        address payable feeRecipient = payable(makeAddr("feeRecipient"));
+        address owner = makeAddr("owner");
+        testERC721.setOwner(owner);
+
+        // enable royalties
+        royaltyRegistry.setRoyaltyLookupAddress(address(testERC721), address(testERC2981));
+
+        // create settings
+        SplitSettings settings = settingsFactory.createSettings(feeRecipient, uint64(feeSplitBps), uint64(royaltyBps));
+
+        // enable settings
+        vm.prank(owner);
+        pairFactory.toggleSettingsForCollection(address(settings), address(testERC721), true);
+
+        // deploy pool
+        SharedPoolERC721ETH pool = factory.createSharedPoolERC721ETH(
+            testERC721,
+            uint128(delta),
+            uint128(spotPrice),
+            uint96(fee),
+            address(0),
+            address(settings),
+            "Shared Pool",
+            "SUDO-POOL"
+        );
+
+        // mint NFTs
+        testERC721.setApprovalForAll(address(pool), true);
+        uint256[] memory idList = _getIdList(1, numNfts);
+        for (uint256 i; i < numNfts; i++) {
+            testERC721.safeMint(address(this), idList[i]);
+        }
+
+        // deposit
+        deal(address(this), tokenAmount);
+        (,, uint256 liquidity) =
+            pool.deposit{value: tokenAmount}(idList, 0, 0, address(this), block.timestamp, bytes(""));
+
+        // withdraw
+        (uint256 numNftOutput, uint256 tokenOutput) =
+            pool.redeem(liquidity, idList, 0, 0, address(this), block.timestamp);
+        assertEq(numNftOutput, numNfts, "NFT output incorrect");
+        assertEq(pool.balanceOf(address(this)), 0, "didn't burn LP tokens");
+        assertEq(testERC721.balanceOf(address(this)), numNfts, "didn't withdraw NFTs");
+        assertLeDecimal(tokenOutput, tokenAmount, 18, "token output incorrect");
     }
 
     /// -----------------------------------------------------------------------

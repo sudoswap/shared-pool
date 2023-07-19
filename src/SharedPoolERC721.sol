@@ -110,7 +110,7 @@ abstract contract SharedPoolERC721 is SharedPool, ERC721TokenReceiver {
         }
 
         ERC20 _token = token();
-        address settingsAddress = settings();
+        address payable settingsAddress = settings();
         if (settingsAddress == address(0)) {
             // withdraw tokens from pair
             _withdrawTokensFromPair(_token, _pair, tokenOutput + royaltyAmount + protocolFeeAmount, address(this));

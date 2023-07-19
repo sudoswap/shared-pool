@@ -95,7 +95,7 @@ abstract contract SharedPoolERC1155 is SharedPool, ERC1155TokenReceiver {
         uint256[] memory amounts = new uint256[](1);
         amounts[0] = numNftOutput;
         ERC20 _token = token();
-        address settingsAddress = settings();
+        address payable settingsAddress = settings();
         if (settingsAddress == address(0)) {
             // withdraw tokens from pair
             _withdrawTokensFromPair(_token, _pair, tokenOutput + royaltyAmount + protocolFeeAmount, address(this));

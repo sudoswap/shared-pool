@@ -6,6 +6,8 @@ import {ClonesWithImmutableArgs} from "clones-with-immutable-args/ClonesWithImmu
 
 import {SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 import {ERC20} from "solmate/tokens/ERC20.sol";
+import {ERC721TokenReceiver} from "solmate/tokens/ERC721.sol";
+import {ERC1155TokenReceiver} from "solmate/tokens/ERC1155.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {IERC1155} from "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 
@@ -20,7 +22,14 @@ import {ISettings} from "lssvm2/settings/ISettings.sol";
 import {Splitter} from "lssvm2/settings/Splitter.sol";
 import {LSSVMPairERC1155} from "lssvm2/erc1155/LSSVMPairERC1155.sol";
 
-contract SplitSettings is IOwnershipTransferReceiver, OwnableWithTransferCallback, Clone, ISettings {
+contract SplitSettings is
+    IOwnershipTransferReceiver,
+    OwnableWithTransferCallback,
+    Clone,
+    ISettings,
+    ERC721TokenReceiver,
+    ERC1155TokenReceiver
+{
     using ClonesWithImmutableArgs for address;
     using SafeTransferLib for address;
     using SafeTransferLib for ERC20;
@@ -270,4 +279,6 @@ contract SplitSettings is IOwnershipTransferReceiver, OwnableWithTransferCallbac
         LSSVMPair(pairAddress).withdrawERC1155(nft, nftIds, amounts);
         nft.safeBatchTransferFrom(address(this), recipient, nftIds, amounts, bytes(""));
     }
+
+    fallback() external payable {}
 }

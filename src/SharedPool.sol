@@ -70,7 +70,7 @@ abstract contract SharedPool is Clone, BaseERC20, ReentrancyGuard {
         __ReentrancyGuard_init();
 
         // if settings is non-zero, transfer ownership of pair to settings
-        address settingsAddress = settings();
+        address payable settingsAddress = settings();
         if (settingsAddress != address(0)) {
             pair().transferOwnership(settingsAddress, bytes(""));
         }
@@ -107,8 +107,8 @@ abstract contract SharedPool is Clone, BaseERC20, ReentrancyGuard {
         return LSSVMPairFactory(payable(_getArgAddress(0x48)));
     }
 
-    function settings() public pure returns (address) {
-        return _getArgAddress(0x5C);
+    function settings() public pure returns (address payable) {
+        return payable(_getArgAddress(0x5C));
     }
 
     function name() public pure override returns (string memory) {
@@ -351,7 +351,7 @@ abstract contract SharedPool is Clone, BaseERC20, ReentrancyGuard {
     }
 
     function _changeSpotPriceAndDelta(LSSVMPair _pair, uint128 spotPrice, uint128 delta) internal {
-        address settingsAddress = settings();
+        address payable settingsAddress = settings();
         if (settingsAddress != address(0)) {
             SplitSettings(settingsAddress).changeSpotPriceAndDelta(address(_pair), spotPrice, delta);
         } else {
