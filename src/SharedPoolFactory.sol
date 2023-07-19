@@ -121,10 +121,12 @@ contract SharedPoolFactory {
             pair, delta, spotPrice, nft, pairFactory, settings, LibString.packOne(name), LibString.packOne(symbol)
         );
         sharedPool = SharedPoolERC721ETH(payable(address(implementationERC721ETH).clone(data)));
-        sharedPool.initialize();
 
         // transfer ownership of pair to SharedPool
         pair.transferOwnership(address(sharedPool), "");
+
+        // initialize shared pool
+        sharedPool.initialize();
 
         emit CreateSharedPoolERC721ETH(sharedPool);
     }

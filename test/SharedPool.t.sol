@@ -13,8 +13,11 @@ import {LSSVMPairERC721ETH} from "lssvm2/erc721/LSSVMPairERC721ETH.sol";
 import {LSSVMPairERC1155ETH} from "lssvm2/erc1155/LSSVMPairERC1155ETH.sol";
 import {LSSVMPairERC721ERC20} from "lssvm2/erc721/LSSVMPairERC721ERC20.sol";
 import {LSSVMPairERC1155ERC20} from "lssvm2/erc1155/LSSVMPairERC1155ERC20.sol";
+import {Splitter} from "lssvm2/settings/Splitter.sol";
 
 import {RoyaltyRegistry} from "manifoldxyz/RoyaltyRegistry.sol";
+
+import {ERC2981} from "@openzeppelin/contracts/token/common/ERC2981.sol";
 
 import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
 
@@ -22,6 +25,8 @@ import "../src/SharedPoolFactory.sol";
 import {TestERC20} from "./mocks/TestERC20.sol";
 import {TestERC721} from "./mocks/TestERC721.sol";
 import {TestERC1155} from "./mocks/TestERC1155.sol";
+import {TestERC2981} from "./mocks/TestERC2981.sol";
+import "../src/settings/SplitSettingsFactory.sol";
 
 contract SharedPoolTest is Test {
     using FixedPointMathLib for uint256;
@@ -31,19 +36,26 @@ contract SharedPoolTest is Test {
     uint256 constant MINIMUM_LIQUIDITY = 1e3;
     uint256 constant BASE = 1e18;
     uint256 constant HALF_BASE = 5e17;
+    address constant ROYALTY_RECEIVER = address(420);
+    uint96 constant ROYALTY_BPS = 30;
 
     SharedPoolFactory factory;
     LSSVMPairFactory pairFactory;
+    SplitSettingsFactory settingsFactory;
+    RoyaltyRegistry royaltyRegistry;
+    RoyaltyEngine royaltyEngine;
     XykCurve bondingCurve;
     TestERC20 testERC20;
     TestERC721 testERC721;
     TestERC1155 testERC1155;
+    ERC2981 testERC2981;
 
     function setUp() public {
         // deploy LSSVMPairFactory
-        RoyaltyRegistry royaltyRegistry = new RoyaltyRegistry(address(0));
+        royaltyRegistry = new RoyaltyRegistry(address(0));
         royaltyRegistry.initialize(address(this));
-        RoyaltyEngine royaltyEngine = new RoyaltyEngine(address(royaltyRegistry));
+        royaltyEngine = new RoyaltyEngine(address(royaltyRegistry));
+        testERC2981 = ERC2981(new TestERC2981(ROYALTY_RECEIVER, ROYALTY_BPS));
         LSSVMPairERC721ETH erc721ETHTemplate = new LSSVMPairERC721ETH(royaltyEngine);
         LSSVMPairERC721ERC20 erc721ERC20Template = new LSSVMPairERC721ERC20(royaltyEngine);
         LSSVMPairERC1155ETH erc1155ETHTemplate = new LSSVMPairERC1155ETH(royaltyEngine);
@@ -74,6 +86,8 @@ contract SharedPoolTest is Test {
         testERC20 = new TestERC20();
         testERC721 = new TestERC721();
         testERC1155 = new TestERC1155();
+
+        settingsFactory = new SplitSettingsFactory(new SplitSettings(new Splitter(), pairFactory));
     }
 
     function test_createSharedPoolERC721ETH(
@@ -494,6 +508,87 @@ contract SharedPoolTest is Test {
         assertEq(pair.spotPrice(), beforeSpotPrice + tokenToAdd);
         assertEq(pool.getNftReserve(), beforeNftReserve + nftToAdd);
         assertEq(pool.getTokenReserve(), beforeTokenReserve + tokenToAdd);
+    }
+
+    function test_settings_swapSendsRoyaltyAndFeeCorrectly(
+        uint256 delta,
+        uint256 spotPrice,
+        uint256 fee,
+        uint256 feeSplitBps,
+        uint256 royaltyBps
+    ) external {
+        delta = bound(delta, 1, 1000);
+        spotPrice = bound(spotPrice, 1e3, 1e20);
+        fee = bound(fee, 0, 0.2e18);
+        uint256 base = 10_000;
+        feeSplitBps = bound(feeSplitBps, 1, base);
+        royaltyBps = bound(royaltyBps, 1, base / 10);
+        address payable feeRecipient = payable(makeAddr("feeRecipient"));
+        address owner = makeAddr("owner");
+        testERC721.setOwner(owner);
+        uint256 numNfts = 10;
+        uint256 tokenAmount = spotPrice * numNfts / delta;
+
+        // enable royalties
+        royaltyRegistry.setRoyaltyLookupAddress(address(testERC721), address(testERC2981));
+
+        // create settings
+        SplitSettings settings = settingsFactory.createSettings(feeRecipient, uint64(feeSplitBps), uint64(royaltyBps));
+
+        // enable settings
+        vm.prank(owner);
+        pairFactory.toggleSettingsForCollection(address(settings), address(testERC721), true);
+
+        // deploy pool
+        SharedPoolERC721ETH pool = factory.createSharedPoolERC721ETH(
+            testERC721,
+            uint128(delta),
+            uint128(spotPrice),
+            uint96(fee),
+            address(0),
+            address(settings),
+            "Shared Pool",
+            "SUDO-POOL"
+        );
+
+        // mint NFTs
+        testERC721.setApprovalForAll(address(pool), true);
+        uint256[] memory idList = _getIdList(1, numNfts);
+        for (uint256 i; i < numNfts; i++) {
+            testERC721.safeMint(address(this), idList[i]);
+        }
+
+        // deposit
+        deal(address(this), tokenAmount);
+        pool.deposit{value: tokenAmount}(idList, 0, 0, address(this), block.timestamp, bytes(""));
+
+        // buy NFTs from the pool
+        uint256 buyNumNfts = 2;
+        (,,,, uint256 tradeFee,) =
+            bondingCurve.getBuyInfo(pool.pair().spotPrice(), pool.pair().delta(), buyNumNfts, fee, PROTOCOL_FEE);
+        (,,, uint256 inputAmount, uint256 protocolFee, uint256 royaltyAmount) =
+            pool.pair().getBuyNFTQuote(1, buyNumNfts);
+        uint256 beforeRoyaltyReceiverBalance = ROYALTY_RECEIVER.balance;
+        uint256 beforeFeeRecipientBalance = feeRecipient.balance;
+        deal(address(this), address(this).balance + inputAmount);
+        pool.pair().swapTokenForSpecificNFTs{value: inputAmount}(
+            _getIdList(1, buyNumNfts), inputAmount, address(this), false, address(0)
+        );
+
+        // withdraw split trade fee
+        Splitter(payable(pool.pair().getFeeRecipient())).withdrawAllETHInSplitter();
+
+        // check royalty and trade fee split
+        uint256 inputAmountMinusFees = inputAmount - royaltyAmount - tradeFee - protocolFee;
+        assertEq(royaltyAmount, inputAmountMinusFees * royaltyBps / base, "royalty incorrect");
+        assertEq(
+            feeRecipient.balance - beforeFeeRecipientBalance,
+            2 * tradeFee * feeSplitBps / base,
+            "split trade fee incorrect"
+        );
+        assertEq(
+            ROYALTY_RECEIVER.balance - beforeRoyaltyReceiverBalance, royaltyAmount, "received royalty amount incorrect"
+        );
     }
 
     /// -----------------------------------------------------------------------
