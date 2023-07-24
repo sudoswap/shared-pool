@@ -16,7 +16,7 @@ contract DeployScript is CREATE3Script {
 
         LSSVMPairFactory pairFactory = LSSVMPairFactory(payable(vm.envAddress("PAIR_FACTORY")));
         address xykCurve = vm.envAddress("XYK_CURVE");
-        Splitter splitterImpl = Splitter(payable(vm.envAddress("SPLITTER_IMPL")));
+        // Splitter splitterImpl = Splitter(payable(vm.envAddress("SPLITTER_IMPL")));
 
         vm.startBroadcast(deployerPrivateKey);
 
@@ -42,7 +42,14 @@ contract DeployScript is CREATE3Script {
                 getCreate3ContractSalt("SplitSettingsFactory"),
                 bytes.concat(
                     type(SplitSettingsFactory).creationCode,
-                    abi.encode(new SplitSettings(splitterImpl, LSSVMPairFactory(pairFactory)))
+                    abi.encode(
+                        new SplitSettings(
+                            Splitter(payable(create3.deploy(
+                                getCreate3ContractSalt("SplitterImpl"), type(Splitter).creationCode
+                            ))),
+                            LSSVMPairFactory(pairFactory)
+                        )
+                    )
                 )
             )
         );
