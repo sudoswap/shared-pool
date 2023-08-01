@@ -20,15 +20,19 @@ import {RoyaltyRegistry} from "manifoldxyz/RoyaltyRegistry.sol";
 import {ERC2981} from "@openzeppelin/contracts/token/common/ERC2981.sol";
 
 import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
+import {ERC721TokenReceiver} from "solmate/tokens/ERC721.sol";
+import {ERC1155TokenReceiver} from "solmate/tokens/ERC1155.sol";
 
-import "../src/SharedPoolFactory.sol";
-import {TestERC20} from "./mocks/TestERC20.sol";
-import {TestERC721} from "./mocks/TestERC721.sol";
-import {TestERC1155} from "./mocks/TestERC1155.sol";
-import {TestERC2981} from "./mocks/TestERC2981.sol";
-import "../src/settings/SplitSettingsFactory.sol";
+import {SharedPool} from "../../src/SharedPool.sol";
+import "../../src/SharedPoolFactory.sol";
+import {TestERC20} from "../mocks/TestERC20.sol";
+import {TestERC721} from "../mocks/TestERC721.sol";
+import {TestERC1155} from "../mocks/TestERC1155.sol";
+import {TestERC2981} from "../mocks/TestERC2981.sol";
+import "../../src/settings/SplitSettingsFactory.sol";
+import {Bus} from "../mocks/Bus.sol";
 
-contract SharedPoolTest is Test {
+abstract contract SharedPoolTest is Test, ERC721TokenReceiver, ERC1155TokenReceiver {
     using FixedPointMathLib for uint256;
 
     uint256 constant PROTOCOL_FEE = 0.005e18;
@@ -40,16 +44,16 @@ contract SharedPoolTest is Test {
     uint96 constant ROYALTY_BPS = 30;
     uint256 constant BPS_BASE = 10_000;
 
-    SharedPoolFactory factory;
-    LSSVMPairFactory pairFactory;
-    SplitSettingsFactory settingsFactory;
-    RoyaltyRegistry royaltyRegistry;
-    RoyaltyEngine royaltyEngine;
-    XykCurve bondingCurve;
-    TestERC20 testERC20;
-    TestERC721 testERC721;
-    TestERC1155 testERC1155;
-    ERC2981 testERC2981;
+    SharedPoolFactory internal factory;
+    LSSVMPairFactory internal pairFactory;
+    SplitSettingsFactory internal settingsFactory;
+    RoyaltyRegistry internal royaltyRegistry;
+    RoyaltyEngine internal royaltyEngine;
+    XykCurve internal bondingCurve;
+    TestERC20 internal testERC20;
+    TestERC721 internal testERC721;
+    TestERC1155 internal testERC1155;
+    ERC2981 internal testERC2981;
 
     function setUp() public {
         // deploy LSSVMPairFactory
@@ -215,34 +219,42 @@ contract SharedPoolTest is Test {
         uint256 tokenAmount = spotPrice * numNfts / delta;
 
         // deploy pool
-        SharedPoolERC721ETH pool = factory.createSharedPoolERC721ETH(
-            testERC721,
-            uint128(delta),
-            uint128(spotPrice),
-            uint96(fee),
-            address(0),
-            address(0),
-            "Shared Pool",
-            "SUDO-POOL"
-        );
+        SharedPool pool = _createSharedPool(delta, spotPrice, fee, address(0), address(0));
 
         // mint NFTs
-        testERC721.setApprovalForAll(address(pool), true);
-        uint256[] memory idList = _getIdList(1, numNfts);
-        for (uint256 i; i < numNfts; i++) {
-            testERC721.safeMint(address(this), idList[i]);
-        }
+        _approveNFT(address(pool));
+        _mintNFT(address(this), numNfts, 1);
 
         // deposit
-        deal(address(this), tokenAmount);
-        (uint256 amountNft, uint256 amountToken, uint256 liquidity) =
-            pool.deposit{value: tokenAmount}(idList, 0, 0, address(this), block.timestamp, bytes(""));
+        _deal(address(this), tokenAmount);
+        (uint256 amountNft, uint256 amountToken, uint256 liquidity) = _deposit(pool, numNfts, tokenAmount);
         uint256 expectedLiquidity = (amountNft * BASE * amountToken).sqrt() - MINIMUM_LIQUIDITY;
         assertEq(liquidity, expectedLiquidity, "minted 0 liquidity");
         assertEq(pool.balanceOf(address(this)), liquidity, "didn't mint LP tokens");
-        assertEq(numNfts - testERC721.balanceOf(address(this)), amountNft, "deposited NFT amount incorrect");
-        assertEq(tokenAmount - address(this).balance, amountToken, "deposited token amount incorrect");
+        assertEq(numNfts - _nftBalanceOf(address(this)), amountNft, "deposited NFT amount incorrect");
+        assertEq(tokenAmount - _tokenBalanceOf(address(this)), amountToken, "deposited token amount incorrect");
     }
+
+    function _deal(address to, uint256 amount) internal virtual;
+    function _approveNFT(address to) internal virtual;
+    function _mintNFT(address to, uint256 amount, uint256 start) internal virtual;
+    function _nftAddress() internal view virtual returns (address);
+    function _deposit(SharedPool pool, uint256 numNfts, uint256 tokenAmount)
+        internal
+        virtual
+        returns (uint256 amountNft, uint256 amountToken, uint256 liquidity);
+    function _redeem(SharedPool pool, uint256 burnAmount, uint256 numNfts)
+        internal
+        virtual
+        returns (uint256 numNftOutput, uint256 tokenOutput);
+    function _nftBalanceOf(address user) internal view virtual returns (uint256);
+    function _tokenBalanceOf(address user) internal view virtual returns (uint256);
+    function _createSharedPool(uint256 delta, uint256 spotPrice, uint256 fee, address propertyChecker, address settings)
+        internal
+        virtual
+        returns (SharedPool);
+    function _withdrawAllTokensFromSplitter(Splitter s) internal virtual;
+    function _buyNFTsFromPool(SharedPool pool, uint256 numNfts, uint256 inputAmount) internal virtual;
 
     function test_withdraw_all(uint256 delta, uint256 spotPrice, uint256 fee, uint256 numNfts) public {
         delta = bound(delta, 1, 1000);
@@ -252,35 +264,21 @@ contract SharedPoolTest is Test {
         uint256 tokenAmount = spotPrice * numNfts / delta;
 
         // deploy pool
-        SharedPoolERC721ETH pool = factory.createSharedPoolERC721ETH(
-            testERC721,
-            uint128(delta),
-            uint128(spotPrice),
-            uint96(fee),
-            address(0),
-            address(0),
-            "Shared Pool",
-            "SUDO-POOL"
-        );
+        SharedPool pool = _createSharedPool(delta, spotPrice, fee, address(0), address(0));
 
         // mint NFTs
-        testERC721.setApprovalForAll(address(pool), true);
-        uint256[] memory idList = _getIdList(1, numNfts);
-        for (uint256 i; i < numNfts; i++) {
-            testERC721.safeMint(address(this), idList[i]);
-        }
+        _approveNFT(address(pool));
+        _mintNFT(address(this), numNfts, 1);
 
         // deposit
-        deal(address(this), tokenAmount);
-        (,, uint256 liquidity) =
-            pool.deposit{value: tokenAmount}(idList, 0, 0, address(this), block.timestamp, bytes(""));
+        _deal(address(this), tokenAmount);
+        (,, uint256 liquidity) = _deposit(pool, numNfts, tokenAmount);
 
         // withdraw
-        (uint256 numNftOutput, uint256 tokenOutput) =
-            pool.redeem(liquidity, idList, 0, 0, address(this), block.timestamp);
+        (uint256 numNftOutput, uint256 tokenOutput) = _redeem(pool, liquidity, numNfts);
         assertEq(numNftOutput, numNfts, "NFT output incorrect");
         assertEq(pool.balanceOf(address(this)), 0, "didn't burn LP tokens");
-        assertEq(testERC721.balanceOf(address(this)), numNfts, "didn't withdraw NFTs");
+        assertEq(_nftBalanceOf(address(this)), numNfts, "didn't withdraw NFTs");
         assertLeDecimal(tokenOutput, tokenAmount, 18, "token output incorrect");
     }
 
@@ -298,31 +296,18 @@ contract SharedPoolTest is Test {
         uint256 tokenAmount = spotPrice * numNfts / delta;
 
         // deploy pool
-        SharedPoolERC721ETH pool = factory.createSharedPoolERC721ETH(
-            testERC721,
-            uint128(delta),
-            uint128(spotPrice),
-            uint96(fee),
-            address(0),
-            address(0),
-            "Shared Pool",
-            "SUDO-POOL"
-        );
+        SharedPool pool = _createSharedPool(delta, spotPrice, fee, address(0), address(0));
 
         // mint NFTs
-        testERC721.setApprovalForAll(address(pool), true);
-        uint256[] memory idList = _getIdList(1, numNfts);
-        for (uint256 i; i < numNfts; i++) {
-            testERC721.safeMint(address(this), idList[i]);
-        }
+        _approveNFT(address(pool));
+        _mintNFT(address(this), numNfts, 1);
 
         // deposit
-        deal(address(this), tokenAmount);
-        (,, uint256 liquidity) =
-            pool.deposit{value: tokenAmount}(idList, 0, 0, address(this), block.timestamp, bytes(""));
+        _deal(address(this), tokenAmount);
+        (,, uint256 liquidity) = _deposit(pool, numNfts, tokenAmount);
 
         // withdraw
-        liquidityToWithdraw = bound(liquidityToWithdraw, 1, liquidity);
+        liquidityToWithdraw = bound(liquidityToWithdraw, 1e3, liquidity);
         uint256 poolTotalSupply = pool.totalSupply();
         uint256 decimalNftAmount = liquidityToWithdraw.mulDivDown(numNfts * BASE, poolTotalSupply);
         uint256 rawTokenOutput = liquidityToWithdraw.mulDivDown(pool.getTokenReserve(), poolTotalSupply);
@@ -344,9 +329,8 @@ contract SharedPoolTest is Test {
         }
 
         // burn liquidity tokens to withdraw assets
-        uint256 beforeTokenBalance = address(this).balance;
-        (uint256 numNftOutput, uint256 tokenOutput) =
-            pool.redeem(liquidityToWithdraw, idList, 0, 0, address(this), block.timestamp);
+        uint256 beforeTokenBalance = _tokenBalanceOf(address(this));
+        (uint256 numNftOutput, uint256 tokenOutput) = _redeem(pool, liquidityToWithdraw, numNfts);
 
         // expected NFT output depends on whether rounding up or down happens
         uint256 expectedNumNftOutput = fractionalNftAmount >= HALF_BASE
@@ -358,10 +342,10 @@ contract SharedPoolTest is Test {
             : numNfts.mulDivDown(liquidityToWithdraw, poolTotalSupply);
         assertEq(numNftOutput, expectedNumNftOutput, "NFT output incorrect");
         assertEq(pool.balanceOf(address(this)), liquidity - liquidityToWithdraw, "didn't burn LP tokens");
-        assertEq(testERC721.balanceOf(address(this)), numNftOutput, "didn't withdraw NFTs");
+        assertEq(_nftBalanceOf(address(this)), numNftOutput, "didn't withdraw NFTs");
 
         // verify token output
-        assertEq(address(this).balance - beforeTokenBalance, tokenOutput, "returned tokenOutput incorrect");
+        assertEq(_tokenBalanceOf(address(this)) - beforeTokenBalance, tokenOutput, "returned tokenOutput incorrect");
     }
 
     function test_depositThenWithdraw_noProfit(uint256 delta, uint256 spotPrice, uint256 fee, uint256 numNfts) public {
@@ -372,32 +356,18 @@ contract SharedPoolTest is Test {
         uint256 tokenAmount = spotPrice * numNfts / delta;
 
         // deploy pool
-        SharedPoolERC721ETH pool = factory.createSharedPoolERC721ETH(
-            testERC721,
-            uint128(delta),
-            uint128(spotPrice),
-            uint96(fee),
-            address(0),
-            address(0),
-            "Shared Pool",
-            "SUDO-POOL"
-        );
+        SharedPool pool = _createSharedPool(delta, spotPrice, fee, address(0), address(0));
 
         // mint NFTs
-        testERC721.setApprovalForAll(address(pool), true);
-        uint256[] memory idList = _getIdList(1, numNfts);
-        for (uint256 i; i < numNfts; i++) {
-            testERC721.safeMint(address(this), idList[i]);
-        }
+        _approveNFT(address(pool));
+        _mintNFT(address(this), numNfts, 1);
 
         // deposit
-        deal(address(this), tokenAmount);
-        (uint256 amountNft, uint256 amountToken, uint256 liquidity) =
-            pool.deposit{value: tokenAmount}(idList, 0, 0, address(this), block.timestamp, bytes(""));
+        _deal(address(this), tokenAmount);
+        (uint256 amountNft, uint256 amountToken, uint256 liquidity) = _deposit(pool, numNfts, tokenAmount);
 
         // withdraw
-        (uint256 numNftOutput, uint256 tokenOutput) =
-            pool.redeem(liquidity, idList, 0, 0, address(this), block.timestamp);
+        (uint256 numNftOutput, uint256 tokenOutput) = _redeem(pool, liquidity, numNfts);
 
         // verify no profit
         assertLe(numNftOutput, amountNft, "withdrew more NFTs");
@@ -412,27 +382,15 @@ contract SharedPoolTest is Test {
         uint256 tokenAmount = spotPrice * numNfts / delta;
 
         // deploy pool
-        SharedPoolERC721ETH pool = factory.createSharedPoolERC721ETH(
-            testERC721,
-            uint128(delta),
-            uint128(spotPrice),
-            uint96(fee),
-            address(0),
-            address(0),
-            "Shared Pool",
-            "SUDO-POOL"
-        );
+        SharedPool pool = _createSharedPool(delta, spotPrice, fee, address(0), address(0));
 
         // mint NFTs
-        testERC721.setApprovalForAll(address(pool), true);
-        uint256[] memory idList = _getIdList(1, numNfts);
-        for (uint256 i; i < numNfts; i++) {
-            testERC721.safeMint(address(this), idList[i]);
-        }
+        _approveNFT(address(pool));
+        _mintNFT(address(this), numNfts, 1);
 
         // deposit
-        deal(address(this), tokenAmount);
-        pool.deposit{value: tokenAmount}(idList, 0, 0, address(this), block.timestamp, bytes(""));
+        _deal(address(this), tokenAmount);
+        _deposit(pool, numNfts, tokenAmount);
 
         uint256 beforeDelta = pool.pair().delta();
         uint256 beforeSpotPrice = pool.pair().spotPrice();
@@ -466,27 +424,15 @@ contract SharedPoolTest is Test {
         uint256 tokenAmount = spotPrice * numNfts / delta;
 
         // deploy pool
-        SharedPoolERC721ETH pool = factory.createSharedPoolERC721ETH(
-            testERC721,
-            uint128(delta),
-            uint128(spotPrice),
-            uint96(fee),
-            address(0),
-            address(0),
-            "Shared Pool",
-            "SUDO-POOL"
-        );
+        SharedPool pool = _createSharedPool(delta, spotPrice, fee, address(0), address(0));
 
         // mint NFTs
-        testERC721.setApprovalForAll(address(pool), true);
-        uint256[] memory idList = _getIdList(1, numNfts);
-        for (uint256 i; i < numNfts; i++) {
-            testERC721.safeMint(address(this), idList[i]);
-        }
+        _approveNFT(address(pool));
+        _mintNFT(address(this), numNfts, 1);
 
         // deposit
-        deal(address(this), tokenAmount);
-        pool.deposit{value: tokenAmount}(idList, 0, 0, address(this), block.timestamp, bytes(""));
+        _deal(address(this), tokenAmount);
+        _deposit(pool, numNfts, tokenAmount);
 
         LSSVMPair pair = pool.pair();
         uint256 beforeDelta = pair.delta();
@@ -495,11 +441,8 @@ contract SharedPoolTest is Test {
         uint256 beforeTokenReserve = pool.getTokenReserve();
 
         // add tokens and NFTs to the pair
-        deal(address(pair), address(pair).balance + tokenToAdd);
-        idList = _getIdList(1 + numNfts, nftToAdd);
-        for (uint256 i; i < nftToAdd; i++) {
-            testERC721.safeMint(address(pair), idList[i]);
-        }
+        _deal(address(pair), _tokenBalanceOf(address(pair)) + tokenToAdd);
+        _mintNFT(address(pair), nftToAdd, 1 + numNfts);
 
         // sync
         pool.sync();
@@ -525,42 +468,30 @@ contract SharedPoolTest is Test {
         royaltyBps = bound(royaltyBps, 1, BPS_BASE / 10);
         address payable feeRecipient = payable(makeAddr("feeRecipient"));
         address owner = makeAddr("owner");
-        testERC721.setOwner(owner);
+        Bus(_nftAddress()).setOwner(owner);
         uint256 numNfts = 10;
         uint256 tokenAmount = spotPrice * numNfts / delta;
 
         // enable royalties
-        royaltyRegistry.setRoyaltyLookupAddress(address(testERC721), address(testERC2981));
+        royaltyRegistry.setRoyaltyLookupAddress(_nftAddress(), address(testERC2981));
 
         // create settings
         SplitSettings settings = settingsFactory.createSettings(feeRecipient, uint64(feeSplitBps), uint64(royaltyBps));
 
         // enable settings
         vm.prank(owner);
-        pairFactory.toggleSettingsForCollection(address(settings), address(testERC721), true);
+        pairFactory.toggleSettingsForCollection(address(settings), _nftAddress(), true);
 
         // deploy pool
-        SharedPoolERC721ETH pool = factory.createSharedPoolERC721ETH(
-            testERC721,
-            uint128(delta),
-            uint128(spotPrice),
-            uint96(fee),
-            address(0),
-            address(settings),
-            "Shared Pool",
-            "SUDO-POOL"
-        );
+        SharedPool pool = _createSharedPool(delta, spotPrice, fee, address(0), address(settings));
 
         // mint NFTs
-        testERC721.setApprovalForAll(address(pool), true);
-        uint256[] memory idList = _getIdList(1, numNfts);
-        for (uint256 i; i < numNfts; i++) {
-            testERC721.safeMint(address(this), idList[i]);
-        }
+        _approveNFT(address(pool));
+        _mintNFT(address(this), numNfts, 1);
 
         // deposit
-        deal(address(this), tokenAmount);
-        pool.deposit{value: tokenAmount}(idList, 0, 0, address(this), block.timestamp, bytes(""));
+        _deal(address(this), tokenAmount);
+        _deposit(pool, numNfts, tokenAmount);
 
         // buy NFTs from the pool
         uint256 buyNumNfts = 2;
@@ -568,26 +499,26 @@ contract SharedPoolTest is Test {
             bondingCurve.getBuyInfo(pool.pair().spotPrice(), pool.pair().delta(), buyNumNfts, fee, PROTOCOL_FEE);
         (,,, uint256 inputAmount, uint256 protocolFee, uint256 royaltyAmount) =
             pool.pair().getBuyNFTQuote(1, buyNumNfts);
-        uint256 beforeRoyaltyReceiverBalance = ROYALTY_RECEIVER.balance;
-        uint256 beforeFeeRecipientBalance = feeRecipient.balance;
-        deal(address(this), address(this).balance + inputAmount);
-        pool.pair().swapTokenForSpecificNFTs{value: inputAmount}(
-            _getIdList(1, buyNumNfts), inputAmount, address(this), false, address(0)
-        );
+        uint256 beforeRoyaltyReceiverBalance = _tokenBalanceOf(ROYALTY_RECEIVER);
+        uint256 beforeFeeRecipientBalance = _tokenBalanceOf(feeRecipient);
+        _deal(address(this), _tokenBalanceOf(address(this)) + inputAmount);
+        _buyNFTsFromPool(pool, buyNumNfts, inputAmount);
 
         // withdraw split trade fee
-        Splitter(payable(pool.pair().getFeeRecipient())).withdrawAllETHInSplitter();
+        _withdrawAllTokensFromSplitter(Splitter(payable(pool.pair().getFeeRecipient())));
 
         // check royalty and trade fee split
         uint256 inputAmountMinusFees = inputAmount - royaltyAmount - tradeFee - protocolFee;
         assertEq(royaltyAmount, inputAmountMinusFees * royaltyBps / BPS_BASE, "royalty incorrect");
         assertEq(
-            feeRecipient.balance - beforeFeeRecipientBalance,
+            _tokenBalanceOf(feeRecipient) - beforeFeeRecipientBalance,
             2 * tradeFee * feeSplitBps / BPS_BASE,
             "split trade fee incorrect"
         );
         assertEq(
-            ROYALTY_RECEIVER.balance - beforeRoyaltyReceiverBalance, royaltyAmount, "received royalty amount incorrect"
+            _tokenBalanceOf(ROYALTY_RECEIVER) - beforeRoyaltyReceiverBalance,
+            royaltyAmount,
+            "received royalty amount incorrect"
         );
     }
 
@@ -608,57 +539,35 @@ contract SharedPoolTest is Test {
         royaltyBps = bound(royaltyBps, 1, BPS_BASE / 10);
         address payable feeRecipient = payable(makeAddr("feeRecipient"));
         address owner = makeAddr("owner");
-        testERC721.setOwner(owner);
+        Bus(_nftAddress()).setOwner(owner);
 
         // enable royalties
-        royaltyRegistry.setRoyaltyLookupAddress(address(testERC721), address(testERC2981));
+        royaltyRegistry.setRoyaltyLookupAddress(_nftAddress(), address(testERC2981));
 
         // create settings
         SplitSettings settings = settingsFactory.createSettings(feeRecipient, uint64(feeSplitBps), uint64(royaltyBps));
 
         // enable settings
         vm.prank(owner);
-        pairFactory.toggleSettingsForCollection(address(settings), address(testERC721), true);
+        pairFactory.toggleSettingsForCollection(address(settings), _nftAddress(), true);
 
         // deploy pool
-        SharedPoolERC721ETH pool = factory.createSharedPoolERC721ETH(
-            testERC721,
-            uint128(delta),
-            uint128(spotPrice),
-            uint96(fee),
-            address(0),
-            address(settings),
-            "Shared Pool",
-            "SUDO-POOL"
-        );
+        SharedPool pool = _createSharedPool(delta, spotPrice, fee, address(0), address(settings));
 
         // mint NFTs
-        testERC721.setApprovalForAll(address(pool), true);
-        uint256[] memory idList = _getIdList(1, numNfts);
-        for (uint256 i; i < numNfts; i++) {
-            testERC721.safeMint(address(this), idList[i]);
-        }
+        _approveNFT(address(pool));
+        _mintNFT(address(this), numNfts, 1);
 
         // deposit
-        deal(address(this), tokenAmount);
-        (,, uint256 liquidity) =
-            pool.deposit{value: tokenAmount}(idList, 0, 0, address(this), block.timestamp, bytes(""));
+        _deal(address(this), tokenAmount);
+        (,, uint256 liquidity) = _deposit(pool, numNfts, tokenAmount);
 
         // withdraw
-        (uint256 numNftOutput, uint256 tokenOutput) =
-            pool.redeem(liquidity, idList, 0, 0, address(this), block.timestamp);
+        (uint256 numNftOutput, uint256 tokenOutput) = _redeem(pool, liquidity, numNfts);
         assertEq(numNftOutput, numNfts, "NFT output incorrect");
         assertEq(pool.balanceOf(address(this)), 0, "didn't burn LP tokens");
-        assertEq(testERC721.balanceOf(address(this)), numNfts, "didn't withdraw NFTs");
+        assertEq(_nftBalanceOf(address(this)), numNfts, "didn't withdraw NFTs");
         assertLeDecimal(tokenOutput, tokenAmount, 18, "token output incorrect");
-    }
-
-    /// -----------------------------------------------------------------------
-    /// ERC721 compliance
-    /// -----------------------------------------------------------------------
-
-    function onERC721Received(address, address, uint256, bytes calldata) external pure returns (bytes4) {
-        return this.onERC721Received.selector;
     }
 
     /// -----------------------------------------------------------------------

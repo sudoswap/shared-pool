@@ -185,10 +185,12 @@ contract SharedPoolFactory {
             token
         );
         sharedPool = SharedPoolERC721ERC20(payable(address(implementationERC721ERC20).clone(data)));
-        sharedPool.initialize();
 
         // transfer ownership of pair to SharedPool
         pair.transferOwnership(address(sharedPool), "");
+
+        // initialize shared pool
+        sharedPool.initialize();
 
         emit CreateSharedPoolERC721ERC20(sharedPool);
     }
@@ -240,10 +242,12 @@ contract SharedPoolFactory {
             nftId
         );
         sharedPool = SharedPoolERC1155ETH(payable(address(implementationERC1155ETH).clone(data)));
-        sharedPool.initialize();
 
         // transfer ownership of pair to SharedPool
         pair.transferOwnership(address(sharedPool), "");
+
+        // initialize shared pool
+        sharedPool.initialize();
 
         emit CreateSharedPoolERC1155ETH(sharedPool);
     }
@@ -302,10 +306,12 @@ contract SharedPoolFactory {
             token
         );
         sharedPool = SharedPoolERC1155ERC20(payable(address(implementationERC1155ERC20).clone(data)));
-        sharedPool.initialize();
 
         // transfer ownership of pair to SharedPool
         pair.transferOwnership(address(sharedPool), "");
+
+        // initialize shared pool
+        sharedPool.initialize();
 
         emit CreateSharedPoolERC1155ERC20(sharedPool);
     }
