@@ -9,6 +9,7 @@ remappings = [
 ]
 verbosity = 1
 via_ir = true
+solc_version = "0.8.20"
 
 # Extreme Fuzzing CI Profile :P
 [profile.ci]
