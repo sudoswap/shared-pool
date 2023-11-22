@@ -31,6 +31,7 @@ import {TestERC1155} from "../mocks/TestERC1155.sol";
 import {TestERC2981} from "../mocks/TestERC2981.sol";
 import "../../src/settings/SplitSettingsFactory.sol";
 import {Bus} from "../mocks/Bus.sol";
+import {ILSSVMPairFactory} from "../../src/ILSSVMPairFactory.sol";
 
 abstract contract SharedPoolTest is Test, ERC721TokenReceiver, ERC1155TokenReceiver {
     using FixedPointMathLib for uint256;
@@ -83,7 +84,7 @@ abstract contract SharedPoolTest is Test, ERC721TokenReceiver, ERC1155TokenRecei
             new SharedPoolERC721ERC20(),
             new SharedPoolERC1155ETH(),
             new SharedPoolERC1155ERC20(),
-            pairFactory,
+            ILSSVMPairFactory(address(pairFactory)),
             bondingCurve
         );
 
