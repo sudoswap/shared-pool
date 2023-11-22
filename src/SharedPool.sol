@@ -4,7 +4,7 @@ pragma solidity ^0.8.4;
 import {Clone} from "@clones/Clone.sol";
 
 import {LSSVMPair} from "lssvm2/LSSVMPair.sol";
-import {LSSVMPairFactory} from "lssvm2/LSSVMPairFactory.sol";
+import {ILSSVMPairFactoryLike} from "lssvm2/ILSSVMPairFactoryLike.sol";
 
 import {LibString} from "solady/src/utils/LibString.sol";
 
@@ -103,8 +103,8 @@ abstract contract SharedPool is Clone, BaseERC20, ReentrancyGuard {
     }
 
     /// @notice The Sudoswap LSSVMPairFactory contract
-    function pairFactory() public pure returns (LSSVMPairFactory) {
-        return LSSVMPairFactory(payable(_getArgAddress(0x48)));
+    function pairFactory() public pure returns (ILSSVMPairFactoryLike) {
+        return ILSSVMPairFactoryLike(payable(_getArgAddress(0x48)));
     }
 
     function settings() public pure returns (address payable) {

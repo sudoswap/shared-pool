@@ -2,7 +2,7 @@
 pragma solidity ^0.8.4;
 
 import {ClonesWithImmutableArgs} from "@clones/ClonesWithImmutableArgs.sol";
-import {LSSVMPairFactory, LSSVMPair, ICurve} from "lssvm2/LSSVMPairFactory.sol";
+import {LSSVMPair, ICurve} from "lssvm2/LSSVMPairFactory.sol";
 
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {IERC1155} from "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
@@ -17,6 +17,7 @@ import {SharedPoolERC721ETH} from "./SharedPoolERC721ETH.sol";
 import {SharedPoolERC721ERC20} from "./SharedPoolERC721ERC20.sol";
 import {SharedPoolERC1155ETH} from "./SharedPoolERC1155ETH.sol";
 import {SharedPoolERC1155ERC20} from "./SharedPoolERC1155ERC20.sol";
+import {ILSSVMPairFactory} from "./ILSSVMPairFactory.sol";
 
 /// @title SharedPoolFactory
 /// @author zefram.eth
@@ -60,7 +61,7 @@ contract SharedPoolFactory {
     SharedPoolERC1155ERC20 internal immutable implementationERC1155ERC20;
 
     /// @notice The LSSVMPairFactory contract used for deploying pairs
-    LSSVMPairFactory internal immutable pairFactory;
+    ILSSVMPairFactory internal immutable pairFactory;
 
     /// @notice The bonding curve used by the pair (should be XYK curve)
     ICurve internal immutable xykCurve;
@@ -70,7 +71,7 @@ contract SharedPoolFactory {
         SharedPoolERC721ERC20 implementationERC721ERC20_,
         SharedPoolERC1155ETH implementationERC1155ETH_,
         SharedPoolERC1155ERC20 implementationERC1155ERC20_,
-        LSSVMPairFactory pairFactory_,
+        ILSSVMPairFactory pairFactory_,
         ICurve xykCurve_
     ) {
         implementationERC721ETH = implementationERC721ETH_;
@@ -157,7 +158,7 @@ contract SharedPoolFactory {
         // deploy trade pair with XYK curve
         uint256[] memory empty;
         LSSVMPair pair = pairFactory.createPairERC721ERC20(
-            LSSVMPairFactory.CreateERC721ERC20PairParams(
+            ILSSVMPairFactory.CreateERC721ERC20PairParams(
                 token,
                 IERC721(address(nft)),
                 xykCurve,
@@ -277,7 +278,7 @@ contract SharedPoolFactory {
 
         // deploy trade pair with XYK curve
         LSSVMPair pair = pairFactory.createPairERC1155ERC20(
-            LSSVMPairFactory.CreateERC1155ERC20PairParams(
+            ILSSVMPairFactory.CreateERC1155ERC20PairParams(
                 token,
                 IERC1155(address(nft)),
                 xykCurve,
